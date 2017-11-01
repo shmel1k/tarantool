@@ -4474,8 +4474,8 @@ case OP_InsertInt: {
 	}
 	x.pKey = 0;
 	rc = sqlite3BtreeInsert(pC->uc.pCursor, &x,
-				(pOp->p5 & OPFLAG_APPEND)!=0, seekResult
-		);
+				(pOp->p5 & OPFLAG_APPEND)!=0, seekResult,
+				TARANTOOL_INDEX_REPLACE);
 	pC->deferredMoveto = 0;
 	pC->cacheStatus = CACHE_STALE;
 
@@ -4620,6 +4620,7 @@ case OP_Delete: {
 case OP_ResetCount: {
 	sqlite3VdbeSetChanges(db, p->nChange);
 	p->nChange = 0;
+	p->ignoreRaised = 0;
 	break;
 }
 
@@ -5053,6 +5054,81 @@ case OP_Next:          /* jump */
 	goto check_for_interrupt;
 }
 
+/* Opcode: IdxReplace P1 P2 P3 P4 P5
+ * Synopsis: key=r[P2]
+ *
+ * Register P2 holds an SQL index key made using the
+ * MakeRecord instructions.  This opcode writes that key
+ * into the index P1.  Data for the entry is nil.
+ *
+ * If P4 is not zero, then it is the number of values in the unpacked
+ * key of reg(P2).  In that case, P3 is the index of the first register
+ * for the unpacked key.  The availability of the unpacked key can sometimes
+ * be an optimization.
+ *
+ * If P5 has the OPFLAG_APPEND bit set, that is a hint to the b-tree layer
+ * that this insert is likely to be an append.
+ *
+ * If P5 has the OPFLAG_NCHANGE bit set, then the change counter is
+ * incremented by this instruction.  If the OPFLAG_NCHANGE bit is clear,
+ * then the change counter is unchanged.
+ *
+ * If the OPFLAG_USESEEKRESULT flag of P5 is set, the implementation might
+ * run faster by avoiding an unnecessary seek on cursor P1.  However,
+ * the OPFLAG_USESEEKRESULT flag must only be set if there have been no prior
+ * seeks on the cursor or if the most recent seek used a key equivalent
+ * to P2.
+ *
+ * This instruction only works for indices.
+ */
+case OP_IdxReplace: {	    /* in2 */
+	VdbeCursor *pC;
+	BtreePayload x;
+
+	assert(pOp->p1>=0 && pOp->p1<p->nCursor);
+	pC = p->apCsr[pOp->p1];
+	assert(pC!=0);
+	assert(isSorter(pC)==(pOp->opcode==OP_SorterInsert));
+	pIn2 = &aMem[pOp->p2];
+	assert(pIn2->flags & MEM_Blob);
+	if (pOp->p5 & OPFLAG_NCHANGE) p->nChange++;
+	assert(pC->eCurType==CURTYPE_BTREE || pOp->opcode==OP_SorterInsert);
+	assert(pC->isTable==0);
+	rc = ExpandBlob(pIn2);
+	if (rc) goto abort_due_to_error;
+	x.nKey = pIn2->n;
+	x.pKey = pIn2->z;
+	x.aMem = aMem + pOp->p3;
+	x.nMem = (u16)pOp->p4.i;
+	rc = sqlite3BtreeInsert(pC->uc.pCursor, &x,
+			(pOp->p5 & OPFLAG_APPEND)!=0,
+			((pOp->p5 & OPFLAG_USESEEKRESULT) ? pC->seekResult : 0),
+			TARANTOOL_INDEX_REPLACE);
+	assert(pC->deferredMoveto==0);
+	pC->cacheStatus = CACHE_STALE;
+
+	if (pOp->p5 & OPFLAG_OE_IGNORE) {
+		/* Ignore any kind of failes and do not raise error message */
+		rc = SQLITE_OK;
+		/* If we are inside a trigger, increment ignore raised counter */
+		if (p->pFrame) {
+			p->ignoreRaised++;
+		}
+	} else if (pOp->p5 & OPFLAG_OE_FAIL) {
+		p->errorAction = OE_Fail;
+	}
+
+	assert(p->errorAction == OE_Abort || p->errorAction == OE_Fail);
+	if (rc) goto abort_due_to_error;
+	break;
+}
+/* Opcode: SorterInsert P1 P2 * * *
+ * Synopsis: key=r[P2]
+ *
+ * Register P2 holds an SQL index key made using the
+ * MakeRecord instructions.  This opcode writes that key
+ * into the sorter P1.  Data for the entry is nil.
+ */
 /* Opcode: IdxInsert P1 P2 P3 P4 P5
  * Synopsis: key=r[P2]
  *
@@ -5081,13 +5157,6 @@ case OP_Next:          /* jump */
  * This instruction only works for indices.  The equivalent instruction
  * for tables is OP_Insert.
  */
-/* Opcode: SorterInsert P1 P2 * * *
- * Synopsis: key=r[P2]
- *
- * Register P2 holds an SQL index key made using the
- * MakeRecord instructions.  This opcode writes that key
- * into the sorter P1.  Data for the entry is nil.
- */
 case OP_SorterInsert:       /* in2 */
 case OP_IdxInsert: {        /* in2 */
 	VdbeCursor *pC;
@@ -5113,11 +5182,24 @@ case OP_IdxInsert: {        /* in2 */
 		x.nMem = (u16)pOp->p4.i;
 		rc = sqlite3BtreeInsert(pC->uc.pCursor, &x,
 					(pOp->p5 & OPFLAG_APPEND)!=0,
-					((pOp->p5 & OPFLAG_USESEEKRESULT) ? pC->seekResult : 0)
-			);
+					((pOp->p5 & OPFLAG_USESEEKRESULT) ? pC->seekResult : 0),
+					TARANTOOL_INDEX_INSERT);
 		assert(pC->deferredMoveto==0);
 		pC->cacheStatus = CACHE_STALE;
 	}
+
+	if (pOp->p5 & OPFLAG_OE_IGNORE) {
+		/* Ignore any kind of failes and do not raise error message */
+		rc = SQLITE_OK;
+		/* If we are in trigger, increment ignore raised counter */
+		if (p->pFrame) {
+			p->ignoreRaised++;
+		}
+	} else if (pOp->p5 & OPFLAG_OE_FAIL) {
+		p->errorAction = OE_Fail;
+	}
+
+	assert(p->errorAction == OE_Abort || p->errorAction == OE_Fail);
 	if (rc) goto abort_due_to_error;
 	break;
 }
@@ -5933,6 +6015,11 @@ case OP_Program: {        /* jump */
 		for(pFrame=p->pFrame; pFrame && pFrame->token!=t; pFrame=pFrame->pParent);
 		if (pFrame) break;
 	}
+
+	if (p->ignoreRaised > 0) {
+		break;
+	}
+
 
 	if (p->nFrame>=db->aLimit[SQLITE_LIMIT_TRIGGER_DEPTH]) {
 		rc = SQLITE_ERROR;

@@ -381,6 +381,15 @@ struct Vdbe {
 	i64 nStmtDefCons;	/* Number of def. constraints when stmt started */
 	i64 nStmtDefImmCons;	/* Number of def. imm constraints when stmt started */
 
+	/*
+	 * In recursive triggers we can execute INSERT/UPDATE OR IGNORE
+	 * statements. If IGNORE error action happened inside a trigger,
+	 * an IgnoreRaised exception is being generated and recursion stops.
+	 * But now INSERT OR IGNORE query bytecode has been optimized and
+	 * ignoreRaised variable helps to track such situations
+	 */
+	u8 ignoreRaised;	/* Flag for ON CONFLICT IGNORE for triggers */
+
 	u8 autoCommit;		/* The auto-commit flag. */
 	u8 isTransactionSavepoint;	/* True if the outermost savepoint is a TS */
 	Savepoint *pSavepoint;	/* List of active savepoints */
