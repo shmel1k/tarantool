@@ -63,7 +63,7 @@ struct VdbeOp {
 	u8 opcode;		/* What operation to perform */
 	signed char p4type;	/* One of the P4_xxx constants for p4 */
 	u8 notUsed1;
-	u8 p5;			/* Fifth parameter is an unsigned character */
+	u16 p5;			/* Fifth parameter is an unsigned character */
 	int p1;			/* First operand */
 	int p2;			/* Second parameter (often the jump destination) */
 	int p3;			/* The third parameter */

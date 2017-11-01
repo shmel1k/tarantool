@@ -272,7 +272,7 @@ struct BtreePayload {
 };
 
 int sqlite3BtreeInsert(BtCursor *, const BtreePayload * pPayload,
-		       int bias, int seekResult);
+		       int bias, int seekResult, int optype);
 int sqlite3BtreeFirst(BtCursor *, int *pRes);
 int sqlite3BtreeLast(BtCursor *, int *pRes);
 int sqlite3BtreeNext(BtCursor *, int *pRes);

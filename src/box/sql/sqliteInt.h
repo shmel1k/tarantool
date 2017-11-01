@@ -2657,6 +2657,7 @@ struct Parse {
 	u8 eOrconf;		/* Default ON CONFLICT policy for trigger steps */
 	u8 disableTriggers;	/* True to disable triggers */
 
+
   /**************************************************************************
   * Fields above must be initialized to zero.  The fields that follow,
   * down to the beginning of the recursive section, do not need to be
@@ -2753,7 +2754,8 @@ struct AuthContext {
 #define OPFLAG_PERMUTE       0x01	/* OP_Compare: use the permutation */
 #define OPFLAG_SAVEPOSITION  0x02	/* OP_Delete: keep cursor position */
 #define OPFLAG_AUXDELETE     0x04	/* OP_Delete: index in a DELETE op */
-
+#define OPFLAG_OE_IGNORE     0x160	/* Ignore flag for vdbe error action */
+#define OPFLAG_OE_FAIL       0x320	/* Rollback flag for vdbe error action */
 #define OPFLAG_SAME_FRAME    0x01	/* OP_FCopy: use same frame for source
 					 * register
 					 */
@@ -3456,7 +3458,7 @@ int sqlite3GenerateIndexKey(Parse *, Index *, int, int, int, int *, Index *,
 void sqlite3ResolvePartIdxLabel(Parse *, int);
 void sqlite3GenerateConstraintChecks(Parse *, Table *, int *, int, int, int,
 				     int, u8, u8, int, int *, int *);
-void sqlite3CompleteInsertion(Parse *, Table *, int, int *, int);
+void sqlite3CompleteInsertion(Parse *, Table *, int, int *, int, u8);
 int sqlite3OpenTableAndIndices(Parse *, Table *, int, u8, int, u8 *, int *,
 			       int *);
 void sqlite3BeginWriteOperation(Parse *, int);

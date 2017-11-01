@@ -4480,8 +4480,8 @@ case OP_InsertInt: {
 	}
 	x.pKey = 0;
 	rc = sqlite3BtreeInsert(pC->uc.pCursor, &x,
-				(pOp->p5 & OPFLAG_APPEND)!=0, seekResult
-		);
+				(pOp->p5 & OPFLAG_APPEND)!=0, seekResult,
+			 	TARANTOOL_INDEX_REPLACE);
 	pC->deferredMoveto = 0;
 	pC->cacheStatus = CACHE_STALE;
 
@@ -4626,6 +4626,7 @@ case OP_Delete: {
 case OP_ResetCount: {
 	sqlite3VdbeSetChanges(db, p->nChange);
 	p->nChange = 0;
+	p->ignoreRaised = 0;
 	break;
 }
 
@@ -5096,6 +5097,7 @@ case OP_Next:          /* jump */
  * into the sorter P1.  Data for the entry is nil.
  */
 case OP_SorterInsert:       /* in2 */
+case OP_IdxReplace:	    /* in2 */
 case OP_IdxInsert: {        /* in2 */
 	VdbeCursor *pC;
 	BtreePayload x;
@@ -5118,13 +5120,30 @@ case OP_IdxInsert: {        /* in2 */
 		x.pKey = pIn2->z;
 		x.aMem = aMem + pOp->p3;
 		x.nMem = (u16)pOp->p4.i;
-		rc = sqlite3BtreeInsert(pC->uc.pCursor, &x,
-					(pOp->p5 & OPFLAG_APPEND)!=0,
-					((pOp->p5 & OPFLAG_USESEEKRESULT) ? pC->seekResult : 0)
-			);
+		if (pOp->opcode == OP_IdxInsert) {
+			rc = sqlite3BtreeInsert(pC->uc.pCursor, &x,
+						(pOp->p5 & OPFLAG_APPEND)!=0,
+						((pOp->p5 & OPFLAG_USESEEKRESULT) ? pC->seekResult : 0),
+						TARANTOOL_INDEX_INSERT);
+		} else if (pOp->opcode == OP_IdxReplace) {
+			rc = sqlite3BtreeInsert(pC->uc.pCursor, &x,
+						(pOp->p5 & OPFLAG_APPEND)!=0,
+						((pOp->p5 & OPFLAG_USESEEKRESULT) ? pC->seekResult : 0),
+						TARANTOOL_INDEX_REPLACE);
+		}
 		assert(pC->deferredMoveto==0);
 		pC->cacheStatus = CACHE_STALE;
 	}
+
+	if (pOp->p5 & OPFLAG_OE_IGNORE) {
+		/* Ignore any kind of failes and do not raise error message */
+		rc = SQLITE_OK;
+		p->ignoreRaised += 1;
+	} else if (pOp->p5 & OPFLAG_OE_FAIL) {
+		p->errorAction = OE_Fail;
+	}
+
+	assert(p->errorAction == OE_Abort);
 	if (rc) goto abort_due_to_error;
 	break;
 }
@@ -5861,6 +5880,14 @@ case OP_Program: {        /* jump */
 		for(pFrame=p->pFrame; pFrame && pFrame->token!=t; pFrame=pFrame->pParent);
 		if (pFrame) break;
 	}
+
+	if (p->ignoreRaised > 0) {
+		p->ignoreRaised--;
+		if (p->ignoreRaised == 0) {
+			break;
+		}
+	}
+
 
 	if (p->nFrame>=db->aLimit[SQLITE_LIMIT_TRIGGER_DEPTH]) {
 		rc = SQLITE_ERROR;

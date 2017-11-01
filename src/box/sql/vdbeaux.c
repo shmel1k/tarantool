@@ -2195,6 +2195,7 @@ sqlite3VdbeRewind(Vdbe * p)
 #endif
 	p->pc = -1;
 	p->rc = SQLITE_OK;
+	p->ignoreRaised = 0;
 	p->errorAction = OE_Abort;
 	p->nChange = 0;
 	p->cacheCtr = 1;

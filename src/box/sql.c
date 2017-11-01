@@ -346,7 +346,11 @@ int tarantoolSqlite3Count(BtCursor *pCur, i64 *pnEntry)
 	return SQLITE_OK;
 }
 
-int tarantoolSqlite3Insert(BtCursor *pCur, const BtreePayload *pX)
+static int insertOrReplace(BtCursor *pCur, const BtreePayload *pX,
+			    int (*box_operation)(uint32_t, const char *,
+						 const char *,
+						 box_tuple_t **)
+	)
 {
 	assert(pCur->curFlags & BTCF_TaCursor);
 
@@ -357,13 +361,23 @@ int tarantoolSqlite3Insert(BtCursor *pCur, const BtreePayload *pX)
 	}
 
 	memcpy(buf, pX->pKey, pX->nKey);
-	if (box_replace(SQLITE_PAGENO_TO_SPACEID(pCur->pgnoRoot),
+	if (box_operation(SQLITE_PAGENO_TO_SPACEID(pCur->pgnoRoot),
 			buf, (const char *)buf + pX->nKey,
 			NULL)
 	    != 0) {
 		return SQLITE_TARANTOOL_ERROR;
 	}
+
 	return SQLITE_OK;
+}
+int tarantoolSqlite3Insert(BtCursor *pCur, const BtreePayload *pX)
+{
+	return insertOrReplace(pCur, pX, box_insert);
+}
+
+int tarantoolSqlite3Replace(BtCursor *pCur, const BtreePayload *pX)
+{
+	return insertOrReplace(pCur, pX, box_replace);
 }
 
 int tarantoolSqlite3Delete(BtCursor *pCur, u8 flags)
@@ -964,7 +978,7 @@ int tarantoolSqlite3MakeTableFormat(Table *pTable, void *buf)
 	for (i = 0; i < n; i++) {
 		const char *t;
 
-		p = enc->encode_map(p, 2);
+		p = enc->encode_map(p, 3);
 		p = enc->encode_str(p, "name", 4);
 		p = enc->encode_str(p, aCol[i].zName, strlen(aCol[i].zName));
 		p = enc->encode_str(p, "type", 4);
@@ -975,6 +989,8 @@ int tarantoolSqlite3MakeTableFormat(Table *pTable, void *buf)
 				convertSqliteAffinity(aCol[i].affinity, aCol[i].notNull == 0);
 		}
 		p = enc->encode_str(p, t, strlen(t));
+		p = enc->encode_str(p, "is_nullable", 11);
+		p = enc->encode_bool(p, aCol[i].notNull == OE_None);
 	}
 	return (int)(p - base);
 }
@@ -1065,18 +1081,16 @@ int tarantoolSqlite3MakeIdxOpts(SqliteIndex *index, const char *zSql, void *buf)
 	(void)index;
 
 	p = enc->encode_map(base, 2);
-	/* gh-2187
-	 *
-	 * Include all index columns, i.e. "key" columns followed by the
-	 * primary key columns, in secondary indices. It means that all
-	 * indices created via SQL engine are unique.
-	 */
+	/* Mark as unique pk and unique indexes */
 	p = enc->encode_str(p, "unique", 6);
-	/* By now uniqueness is checked by sqlite vdbe engine by extra
-	 * secondary index lookups because we did not implement
-	 * on conflict Replase, Ignore... features
-	 **/
-	p = enc->encode_bool(p, IsPrimaryKeyIndex(index));
+	/* If user didn't defined ON CONFLICT OPTIONS, all uniqueness checks
+	 * will be made by Tarantool. However, Tarantool doesn't have ON
+	 * CONFLIT option, so in that case (except ON CONFLICT ABORT, which is
+	 * default behavior) uniqueness will be checked by SQL.
+	 * INSERT OR REPLACE/IGNORE uniqueness checks will be also done by
+	 * Tarantool.
+	 */
+	p = enc->encode_bool(p, IsUniqueIndex(index));
 	p = enc->encode_str(p, "sql", 3);
 	p = enc->encode_str(p, zSql, zSql ? strlen(zSql) : 0);
 	return (int)(p - base);

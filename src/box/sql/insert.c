@@ -35,6 +35,7 @@
  */
 #include "sqliteInt.h"
 #include "box/session.h"
+#include <stdbool.h>
 
 /*
  * Generate code that will
@@ -915,7 +916,7 @@ sqlite3Insert(Parse * pParse,	/* Parser context */
 						SQLITE_ForeignKeys) == 0 ||
 					       sqlite3FkReferences(pTab) == 0));
 		sqlite3CompleteInsertion(pParse, pTab, iIdxCur, aRegIdx,
-					 bUseSeek);
+					 bUseSeek, onError);
 	}
 
 	/* Update the count of rows that are inserted
@@ -1427,6 +1428,24 @@ sqlite3GenerateConstraintChecks(Parse * pParse,		/* The parser context */
 		int regR;	/* Range of registers holding conflicting PK */
 		int iThisCur;	/* Cursor for this UNIQUE index */
 		int addrUniqueOk;	/* Jump here if the UNIQUE constraint is satisfied */
+		bool onConflictClause = false;
+
+		if (!IsUniqueIndex(pIdx)) {
+			continue;	/* pIdx is not a UNIQUE index */
+		}
+
+		if ((pIdx->onError != OE_Abort && pIdx->onError != OE_Default) ||
+		   (overrideError != OE_Abort && overrideError != OE_Default)) {
+			onConflictClause = true;
+		}
+
+		/* In case of PK index and replace as an error action
+		 * do uniqueness checks and replacing by Tarantool, not by SQL
+		 */
+		if (IsPrimaryKeyIndex(pIdx) && (pIdx->onError == OE_Replace ||
+						overrideError == OE_Replace)) {
+			onConflictClause = false;
+		}
 
 		if (aRegIdx[ix] == 0)
 			continue;	/* Skip indices that do not change */
@@ -1521,7 +1540,12 @@ sqlite3GenerateConstraintChecks(Parse * pParse,		/* The parser context */
 
 		/* Find out what action to take in case there is a uniqueness conflict */
 		onError = pIdx->onError;
-		if (onError == OE_None) {
+		/* If pIdx is not a UNIQUE or we are doing INSERT OR IGNORE,
+		 * INSERT OR FAIL then skip uniqueness checks and let it to be
+		 * done by Tarantool.
+		 */
+		if (onError == OE_None || overrideError == OE_Fail ||
+		    overrideError == OE_Ignore) {
 			sqlite3VdbeResolveLabel(v, addrUniqueOk);
 			continue;	/* pIdx is not a UNIQUE index */
 		}
@@ -1534,16 +1558,14 @@ sqlite3GenerateConstraintChecks(Parse * pParse,		/* The parser context */
 		/* Collision detection may be omitted if all of the following are true:
 		 *   (1) The conflict resolution algorithm is REPLACE
 		 *   (2) The table is a WITHOUT ROWID table
-		 *   (3) There are no secondary indexes on the table
-		 *   (4) No delete triggers need to be fired if there is a conflict
-		 *   (5) No FK constraint counters need to be updated if a conflict occurs.
+		 *   (3) No delete triggers need to be fired if there is a conflict
+		 *   (4) No FK constraint counters need to be updated if a conflict occurs.
 		 */
-		if ((ix == 0 && pIdx->pNext == 0)	/* Condition 3 */
-		    &&pPk == pIdx	/* Condition 2 */
+		if (pPk == pIdx			/* Condition 2 */
 		    && onError == OE_Replace	/* Condition 1 */
-		    && (0 == (user_session->sql_flags & SQLITE_RecTriggers)	/* Condition 4 */
+		    && (0 == (user_session->sql_flags & SQLITE_RecTriggers)	/* Condition 3 */
 			||0 == sqlite3TriggersExist(pTab, TK_DELETE, 0, 0))
-		    && (0 == (user_session->sql_flags & SQLITE_ForeignKeys) ||	/* Condition 5 */
+		    && (0 == (user_session->sql_flags & SQLITE_ForeignKeys) ||	/* Condition 4 */
 			(0 == pTab->pFKey && 0 == sqlite3FkReferences(pTab)))
 		    ) {
 			sqlite3VdbeResolveLabel(v, addrUniqueOk);
@@ -1555,15 +1577,17 @@ sqlite3GenerateConstraintChecks(Parse * pParse,		/* The parser context */
 			sqlite3VdbeAddOp2(v, OP_IsNull,
 					  reg_pk,
 					  addrUniqueOk);
-		sqlite3VdbeAddOp4Int(v, OP_NoConflict, iThisCur, addrUniqueOk,
-				     regIdx, pIdx->nKeyCol);
+		if (onConflictClause) {
+			sqlite3VdbeAddOp4Int(v, OP_NoConflict, iThisCur, addrUniqueOk,
+				     	     regIdx, pIdx->nKeyCol);
+		}
 		VdbeCoverage(v);
 
 		/* Generate code to handle collisions */
 		regR =
 		    (pIdx == pPk) ? regIdx : sqlite3GetTempRange(pParse,
 								 nPkField);
-		if (isUpdate || onError == OE_Replace) {
+		if ((isUpdate && onConflictClause) || onError == OE_Replace) {
 			if (HasRowid(pTab)) {
 				sqlite3VdbeAddOp2(v, OP_IdxRowid, iThisCur,
 						  regR);
@@ -1600,7 +1624,7 @@ sqlite3GenerateConstraintChecks(Parse * pParse,		/* The parser context */
 							     zName));
 					}
 				}
-				if (isUpdate) {
+				if (isUpdate && onConflictClause) {
 					/* If currently processing the PRIMARY KEY of a WITHOUT ROWID
 					 * table, only conflict if the new PRIMARY KEY values are actually
 					 * different from the old.
@@ -1651,10 +1675,15 @@ sqlite3GenerateConstraintChecks(Parse * pParse,		/* The parser context */
 		       || onError == OE_Fail || onError == OE_Ignore
 		       || onError == OE_Replace);
 		switch (onError) {
-		case OE_Rollback:
-		case OE_Abort:
-		case OE_Fail:{
+		case OE_Rollback:{
 				sqlite3UniqueConstraint(pParse, onError, pIdx);
+				break;
+			}
+		case OE_Fail: {
+				sqlite3UniqueConstraint(pParse, onError, pIdx);
+				break;
+			}
+		case OE_Abort: {
 				break;
 			}
 		case OE_Ignore:{
@@ -1710,11 +1739,13 @@ sqlite3CompleteInsertion(Parse * pParse,	/* The parser context */
 			 Table * pTab,		/* the table into which we are inserting */
 			 int iIdxCur,		/* Primary index cursor */
 			 int *aRegIdx,		/* Register used by each index.  0 for unused indices */
-			 int useSeekResult)	/* True to set the USESEEKRESULT flag on OP_[Idx]Insert */
+			 int useSeekResult,	/* True to set the USESEEKRESULT flag on OP_[Idx]Insert */
+			 u8 onError)
 {
 	Vdbe *v;		/* Prepared statements under construction */
 	Index *pIdx;		/* An index being inserted or updated */
 	u8 pik_flags;		/* flag values passed to the btree insert */
+	int opcode;
 
 	v = sqlite3GetVdbe(pParse);
 	assert(v != 0);
@@ -1742,10 +1773,24 @@ sqlite3CompleteInsertion(Parse * pParse,	/* The parser context */
 	}
 	assert(!HasRowid(pTab));
 	assert(pParse->nested == 0);
-	sqlite3VdbeAddOp4Int(v, OP_IdxInsert, iIdxCur, aRegIdx[0],
+
+	if (onError == OE_Replace) {
+		opcode = OP_IdxReplace;
+	} else {
+		opcode = OP_IdxInsert;
+	}
+
+	uint32_t error_flag = 0;
+	if (onError == OE_Ignore) {
+		error_flag = OPFLAG_OE_IGNORE;
+	} else if (onError == OE_Fail) {
+		error_flag = OPFLAG_OE_FAIL;
+	}
+
+	sqlite3VdbeAddOp4Int(v, opcode, iIdxCur, aRegIdx[0],
 			     aRegIdx[0] + 1,
 			     pIdx->uniqNotNull ? pIdx->nKeyCol : pIdx->nColumn);
-	sqlite3VdbeChangeP5(v, pik_flags);
+	sqlite3VdbeChangeP5(v, pik_flags | error_flag);
 }
 
 /*

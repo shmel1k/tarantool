@@ -7376,7 +7376,8 @@ int
 sqlite3BtreeInsert(BtCursor * pCur,	/* Insert data into the table of this cursor */
 		   const BtreePayload * pX,	/* Content of the row to be inserted */
 		   int appendBias,	/* True if this is likely an append */
-		   int seekResult	/* Result of prior MovetoUnpacked() call */
+		   int seekResult,	/* Result of prior MovetoUnpacked() call */
+		   int optype		/* Operation type - INSERT or REPLACE */
     )
 {
 	int rc;
@@ -7410,9 +7411,14 @@ sqlite3BtreeInsert(BtCursor * pCur,	/* Insert data into the table of this cursor
 	 * blob of associated data.
 	 */
 	assert((pX->pKey == 0) == (pCur->pKeyInfo == 0));
+	assert(optype == TARANTOOL_INDEX_INSERT ||
+	       optype == TARANTOOL_INDEX_REPLACE);
 
-	if (pCur->curFlags & BTCF_TaCursor) {
+	if (pCur->curFlags & BTCF_TaCursor && optype == TARANTOOL_INDEX_INSERT) {
 		return tarantoolSqlite3Insert(pCur, pX);
+	}
+	if (pCur->curFlags & BTCF_TaCursor && optype == TARANTOOL_INDEX_REPLACE) {
+		return tarantoolSqlite3Replace(pCur, pX);
 	}
 
 	/* Save the positions of any other cursors open on this table.
