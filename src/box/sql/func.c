@@ -35,8 +35,12 @@
  * time functions, are implemented separately.)
  */
 #include "sqliteInt.h"
+#include "unicode/ustring.h"
+#include "unicode/ucasemap.h"
 #include <stdlib.h>
 #include <assert.h>
+#include <unicode/utf.h>
+#include <unicode/utypes.h>
 #include "vdbeInt.h"
 
 /*
@@ -519,6 +523,79 @@ lowerFunc(sqlite3_context * context, int argc, sqlite3_value ** argv)
 		}
 	}
 }
+
+
+static UCaseMap* getUcaseMapByMem(sqlite3_context * context, Mem* mem){
+	char* locale;
+	if (mem->flags & MEM_Null) {
+		locale = NULL;
+	}
+	else if (mem->flags & MEM_Str) {
+		assert(mem->flags & MEM_Term);
+		locale = mem->z;
+	}
+	else{
+		sqlite3_result_error(context,
+				     "Case convertion: wrong parameters", -1);
+		return NULL;
+	}
+	UErrorCode status = U_ZERO_ERROR;
+	UCaseMap *map = ucasemap_open(locale, 0, &status);
+	if (status != U_ZERO_ERROR){
+		sqlite3_result_error(context,
+				     "Case convertion: can not crete case map",
+				     -1);
+		return NULL;
+	}
+	return map;
+}
+
+#define ICU_CASE_CONVERT(case_type) \
+static void \
+case_type##ICUFunc(sqlite3_context * context, int argc, sqlite3_value ** argv)\
+{                                                                             \
+	char *z1;                                                             \
+	const char *z2;                                                       \
+	int n;                                                                \
+	if (argc != 2){                                                       \
+		sqlite3_result_error(context,                                 \
+				     "Convert case icu, wrong arg count", -1);\
+		return;                                                       \
+	}                                                                     \
+	z2 = (char *)sqlite3_value_text(argv[0]);                             \
+	n = sqlite3_value_bytes(argv[0]);                                     \
+	/* Verify that the call to _bytes()                                   \
+         * does not invalidate the _text() pointer                            \
+         */                                                                   \
+	assert(z2 == (char *)sqlite3_value_text(argv[0]));                    \
+	if (!z2)return;                                                       \
+                                                                              \
+	z1 = contextMalloc(context, ((i64) n) + 1);                           \
+	if (!z1) {                                                            \
+		sqlite3_result_error_nomem(context);                          \
+		return;                                                       \
+	}                                                                     \
+	UCaseMap *map = getUcaseMapByMem(context, argv[1]);                   \
+	if (!map) return;                                                     \
+	UErrorCode status = U_ZERO_ERROR;                                     \
+	int len = ucasemap_utf8To##case_type(map, z1, n, z2, n, &status);     \
+	if (len > n){                                                         \
+		status = U_ZERO_ERROR;                                        \
+		sqlite3_free(z1);                                             \
+		z1 = contextMalloc(context, ((i64) len) + 1);                 \
+		if (!z1) {                                                    \
+			sqlite3_result_error_nomem(context);                  \
+			return;                                               \
+		}                                                             \
+		ucasemap_utf8To##case_type(map, z1, len, z2, n, &status);     \
+	}                                                                     \
+	sqlite3_result_text(context, z1, len, sqlite3_free);                  \
+	ucasemap_close(map);                                                  \
+}
+
+ICU_CASE_CONVERT(Lower);
+ICU_CASE_CONVERT(Upper);
+
 
 /*
  * Some functions like COALESCE() and IFNULL() and UNLIKELY() are implemented
@@ -1880,7 +1957,9 @@ sqlite3RegisterBuiltinFunctions(void)
 		FUNCTION(round, 2, 0, 0, roundFunc),
 #endif
 		FUNCTION(upper, 1, 0, 0, upperFunc),
+		FUNCTION(upper, 2, 0, 0, UpperICUFunc),
 		FUNCTION(lower, 1, 0, 0, lowerFunc),
+		FUNCTION(lower, 2, 0, 0, LowerICUFunc),
 		FUNCTION(hex, 1, 0, 0, hexFunc),
 		FUNCTION2(ifnull, 2, 0, 0, noopFunc, SQLITE_FUNC_COALESCE),
 		VFUNCTION(random, 0, 0, 0, randomFunc),

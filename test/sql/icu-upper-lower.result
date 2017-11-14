@@ -1,0 +1,36 @@
+test_run = require('test_run').new()
+---
+...
+-- Some test cases
+box.sql.execute("select lower('ЯяяяЙЮывфыв ыфвsda sa dasd 213  dw', NULL)")
+---
+- - ['яяяяйюывфыв ыфвsda sa dasd 213  dw']
+...
+box.sql.execute("select lower('ЯяяяЙЮывфыв  STRASSE sa dasd 213  dw', 'de_DE')")
+---
+- - ['яяяяйюывфыв  strasse sa dasd 213  dw']
+...
+box.sql.execute("select upper('ЫВывывы ывф', NULL)")
+---
+- - ['ЫВЫВЫВЫ ЫВФ']
+...
+box.sql.execute("select upper('iiiii i ЫВывывы ывф Straße', 'de_DE')")
+---
+- - ['IIIII I ЫВЫВЫВЫ ЫВФ STRASSE']
+...
+box.sql.execute("select upper('iiii i ЫВывывы ывф Straße', 'tr_TR')")
+---
+- - ['İİİİ İ ЫВЫВЫВЫ ЫВФ STRASSE']
+...
+box.sql.execute("select upper('iiii i ЫВывывы ывф Straße', 'tr_TasdasdR')")
+---
+- - ['İİİİ İ ЫВЫВЫВЫ ЫВФ STRASSE']
+...
+box.sql.execute("select upper(1, 'tr_TasdasdR')")
+---
+- - ['1']
+...
+box.sql.execute("select upper('iiii i ЫВывывы ывф Straße')")
+---
+- - ['IIII I ЫВывывы ывф STRAßE']
+...
