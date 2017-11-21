@@ -818,8 +818,7 @@ sqlite3Insert(Parse * pParse,	/* Parser context */
 							  pTab->aCol[i].pDflt,
 							  iRegStore);
 			} else if (useTempTable) {
-				if ((pTab->tabFlags & TF_Autoincrement)
-				    && (i == pTab->iAutoIncPKey)) {
+				if (i == pTab->iAutoIncPKey) {
 					int regTmp = ++pParse->nMem;
 					/* Emit code which doesn't override
 					 * autoinc-ed value with select result
@@ -838,8 +837,7 @@ sqlite3Insert(Parse * pParse,	/* Parser context */
 				}
 			} else if (pSelect) {
 				if (regFromSelect != regData) {
-					if ((pTab->tabFlags & TF_Autoincrement)
-					    && (i == pTab->iAutoIncPKey)) {
+					if (i == pTab->iAutoIncPKey) {
 						/* Emit code which doesn't override
 						 * autoinc-ed value with select result
 						 * in case that result is NULL
@@ -1189,7 +1187,7 @@ sqlite3GenerateConstraintChecks(Parse * pParse,		/* The parser context */
 			continue;
 		}
 		onError = pTab->aCol[i].notNull;
-		if (onError == OE_None || (pTab->tabFlags & TF_Autoincrement && pTab->iAutoIncPKey == i))
+		if (onError == OE_None || (pTab->iAutoIncPKey == i))
 			continue;	/* This column is allowed to be NULL */
 		if (overrideError != OE_Default) {
 			onError = overrideError;
