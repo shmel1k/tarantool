@@ -6,8 +6,8 @@ math.randomseed(os.time())
 
 s = box.schema.space.create('test', {engine = 'vinyl'})
 _ = s:create_index('pk', {parts = {1, 'unsigned'}})
-_ = s:create_index('i1', {unique = true, parts = {2, 'unsigned', 3, 'unsigned'}})
-_ = s:create_index('i2', {unique = true, parts = {2, 'unsigned', 4, 'unsigned'}})
+_ = s:create_index('i1', {unique = false, parts = {2, 'unsigned', 3, 'unsigned'}})
+_ = s:create_index('i2', {unique = false, parts = {2, 'unsigned', 4, 'unsigned'}})
 
 --
 -- If called from a transaction, i1:select({k}) and i2:select({k})
