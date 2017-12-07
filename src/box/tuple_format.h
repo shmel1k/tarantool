@@ -304,7 +304,7 @@ static inline const char *
 tuple_field_raw(const struct tuple_format *format, const char *tuple,
 		const uint32_t *field_map, uint32_t field_no)
 {
-	if (likely(field_no < format->field_count)) {
+	if (likely(field_no < format->index_field_count)) {
 		/* Indexed field */
 
 		if (field_no == 0) {
@@ -313,8 +313,12 @@ tuple_field_raw(const struct tuple_format *format, const char *tuple,
 		}
 
 		int32_t offset_slot = format->fields[field_no].offset_slot;
-		if (offset_slot != TUPLE_OFFSET_SLOT_NIL)
-			return tuple + field_map[offset_slot];
+		if (offset_slot != TUPLE_OFFSET_SLOT_NIL) {
+			if (field_map[offset_slot] != 0)
+				return tuple + field_map[offset_slot];
+			else
+				return NULL;
+		}
 	}
 	ERROR_INJECT(ERRINJ_TUPLE_FIELD, return NULL);
 	uint32_t field_count = mp_decode_array(&tuple);

@@ -261,6 +261,7 @@ tuple_format_alloc(struct key_def * const *keys, uint16_t key_count,
 		   uint32_t space_field_count)
 {
 	uint32_t index_field_count = 0;
+	uint32_t min_field_count = 0;
 	/* find max max field no */
 	for (uint16_t key_no = 0; key_no < key_count; ++key_no) {
 		const struct key_def *key_def = keys[key_no];
@@ -269,6 +270,10 @@ tuple_format_alloc(struct key_def * const *keys, uint16_t key_count,
 		for (; part < pend; part++) {
 			index_field_count = MAX(index_field_count,
 						part->fieldno + 1);
+			if (! part->is_nullable) {
+				min_field_count = MAX(min_field_count,
+						      part->fieldno + 1);
+			}
 		}
 	}
 	uint32_t field_count = MAX(space_field_count, index_field_count);
@@ -305,7 +310,7 @@ tuple_format_alloc(struct key_def * const *keys, uint16_t key_count,
 	format->field_count = field_count;
 	format->index_field_count = index_field_count;
 	format->exact_field_count = 0;
-	format->min_field_count = index_field_count;
+	format->min_field_count = min_field_count;
 	return format;
 
 error_name_hash_reserve:
@@ -474,6 +479,10 @@ tuple_init_field_map(const struct tuple_format *format, uint32_t *field_map,
 	++field;
 	uint32_t i = 1;
 	uint32_t defined_field_count = MIN(field_count, format->field_count);
+	if (field_count < format->index_field_count) {
+		memset((char *)field_map - format->field_map_size, 0,
+		       format->field_map_size);
+	}
 	for (; i < defined_field_count; ++i, ++field) {
 		mp_type = mp_typeof(*pos);
 		if (key_mp_type_validate(field->type, mp_type, ER_FIELD_TYPE,
