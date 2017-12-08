@@ -38,6 +38,7 @@
 #include "txn.h"
 #include "rmean.h"
 #include "info.h"
+#include "tuple_extract_key.h"
 
 /* {{{ Utilities. **********************************************/
 

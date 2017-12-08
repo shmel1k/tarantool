@@ -71,6 +71,7 @@
 #include "trigger.h"
 #include "checkpoint.h"
 #include "wal.h" /* wal_mode() */
+#include "tuple_extract_key.h"
 
 /**
  * Yield after iterating over this many objects (e.g. ranges).

@@ -37,7 +37,7 @@
 #include "fio.h"
 #include "cbus.h"
 #include "memory.h"
-
+#include "tuple_extract_key.h"
 #include "replication.h"
 #include "tuple_hash.h" /* for bloom filter */
 #include "xlog.h"

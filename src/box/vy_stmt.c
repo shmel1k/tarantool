@@ -41,6 +41,7 @@
 
 #include "error.h"
 #include "tuple_format.h"
+#include "tuple_extract_key.h"
 #include "xrow.h"
 #include "fiber.h"
 

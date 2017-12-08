@@ -33,6 +33,7 @@
 #include <string.h>
 #include "tuple.h"
 #include "tuple_compare.h"
+#include "tuple_extract_key.h"
 #include "trigger.h"
 #include "user.h"
 #include "session.h"

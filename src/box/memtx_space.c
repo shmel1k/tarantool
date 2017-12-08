@@ -33,6 +33,7 @@
 #include "iproto_constants.h"
 #include "txn.h"
 #include "tuple_compare.h"
+#include "tuple_extract_key.h"
 #include "tuple_update.h"
 #include "xrow.h"
 #include "memtx_hash.h"
