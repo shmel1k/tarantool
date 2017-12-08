@@ -466,6 +466,26 @@ invalidate:
 	return 0;
 }
 
+int
+iterator_next_ephemeral(struct iterator *it, struct tuple **ret, struct space *space)
+{
+	assert(it->next != NULL);
+	if (unlikely(it->schema_version != schema_version)) {
+		if (space == NULL)
+			goto invalidate;
+		struct index *index = space_index(space, it->index_id);
+		if (index != it->index ||
+		    index->schema_version > it->schema_version)
+			goto invalidate;
+		it->schema_version = schema_version;
+	}
+	return it->next(it, ret);
+
+invalidate:
+	*ret = NULL;
+	return 0;
+}
+
 void
 iterator_delete(struct iterator *it)
 {

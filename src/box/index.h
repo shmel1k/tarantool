@@ -35,6 +35,8 @@
 #include "iterator_type.h"
 #include "index_def.h"
 
+struct space;
+
 #if defined(__cplusplus)
 extern "C" {
 #endif /* defined(__cplusplus) */
@@ -258,6 +260,8 @@ iterator_create(struct iterator *it, struct index *index);
 int
 iterator_next(struct iterator *it, struct tuple **ret);
 
+int
+iterator_next_ephemeral(struct iterator *it, struct tuple **ret, struct space *space);
 /**
  * Destroy an iterator instance and free associated memory.
  */

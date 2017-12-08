@@ -63,6 +63,7 @@ box_schema_version();
 static inline struct space *
 space_cache_find(uint32_t id)
 {
+	assert(id);
 	static uint32_t prev_schema_version = 0;
 	static struct space *space = NULL;
 	if (prev_schema_version != schema_version)

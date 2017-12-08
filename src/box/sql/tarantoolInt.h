@@ -70,6 +70,13 @@ int tarantoolSqlite3Insert(BtCursor * pCur, const BtreePayload * pX);
 int tarantoolSqlite3Delete(BtCursor * pCur, u8 flags);
 int tarantoolSqlite3ClearTable(int iTable);
 
+/* Interface for ephemeral tables. */
+int tarantoolSqlite3EphemeralCreate(BtCursor * pCur, uint32_t filed_count);
+int tarantoolSqlite3EphemeralInsert(BtCursor * pCur, const BtreePayload * pX);
+int tarantoolSqlite3EphemeralFirst(BtCursor * pCur, int * pRes);
+int tarantoolSqlite3EphemeralNext(BtCursor *pCur, int * pRes);
+int tarantoolSqlite3EphemeralDrop(BtCursor * pCur);
+
 /* Compare against the index key under a cursor -
  * the key may span non-adjacent fields in a random order,
  * ex: [4]-[1]-[2]

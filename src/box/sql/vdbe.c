@@ -3533,6 +3533,53 @@ case OP_OpenEphemeral: {
 	break;
 }
 
+/* Opcode: OpenTEphemeral P1 P2 * * *
+ * Synopsis: nColumn = P2
+ *
+ * This opcode creates Tarantool's ephemeral table and sets cursor P1 to it.
+ */
+case OP_OpenTEphemeral: {
+	VdbeCursor *pCx;
+	KeyInfo *pKeyInfo;
+	static const int vfsFlags =
+		SQLITE_OPEN_READWRITE |
+		SQLITE_OPEN_CREATE |
+		SQLITE_OPEN_EXCLUSIVE |
+		SQLITE_OPEN_DELETEONCLOSE |
+		SQLITE_OPEN_TRANSIENT_DB |
+		SQLITE_OPEN_MEMORY;
+	assert(pOp->p1 >= 0);
+	assert(pOp->p2 > 0);
+
+	pCx = allocateCursor(p, pOp->p1, pOp->p2, CURTYPE_BTREE);
+	if (pCx == 0) goto no_mem;
+	pCx->isEphemeral = 1;
+	pCx->nullRow = 1;
+	rc = sqlite3BtreeOpen(db->pVfs, 0, db, &pCx->pBtx,
+			      BTREE_OMIT_JOURNAL | BTREE_SINGLE, vfsFlags);
+	if (rc) goto abort_due_to_error;
+	rc = sqlite3BtreeBeginTrans(pCx->pBtx, p->nSavepoint, 1);
+	if (rc) goto abort_due_to_error;
+	pCx->pKeyInfo = pKeyInfo = pOp->p4.pKeyInfo;
+	int pgno;
+	assert(pOp->p4type==P4_KEYINFO);
+	rc = sqlite3BtreeCreateTable(pCx->pBtx, &pgno, BTREE_BLOBKEY | pOp->p5);
+	if (rc==SQLITE_OK) {
+		assert(pgno==2);
+		assert(pKeyInfo->db==db);
+		assert(pKeyInfo->enc==ENC(db));
+		sqlite3BtreeCursorEphemeral(pCx->pBtx, pgno, BTREE_WRCSR, pKeyInfo,
+					    pCx->uc.pCursor);
+//		rc = sqlite3BtreeCursor(pCx->pBtx, pgno, BTREE_WRCSR,
+//					pKeyInfo, pCx->uc.pCursor);
+	}
+	pCx->isTable = 0;
+	tarantoolSqlite3EphemeralCreate(pCx->uc.pCursor, pOp->p2);
+	int res;
+	tarantoolSqlite3EphemeralFirst(pCx->uc.pCursor, &res);
+	break;
+}
+
 /* Opcode: SorterOpen P1 P2 P3 P4 *
  *
  * This opcode works like OP_OpenEphemeral except that it opens
@@ -4945,7 +4992,7 @@ case OP_Rewind: {        /* jump */
  * jump immediately to P2.
  *
  * The Next opcode is only valid following an SeekGT, SeekGE, or
- * OP_Rewind opcode used to position the cursor.  Next is not allowed
+ * Rewind opcode used to position the cursor.  Next is not allowed
  * to follow SeekLT, SeekLE, or OP_Last.
  *
  * The P1 cursor must be for a real table, not a pseudo-table.  P1 must have
