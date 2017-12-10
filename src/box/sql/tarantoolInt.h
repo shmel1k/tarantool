@@ -74,8 +74,12 @@ int tarantoolSqlite3ClearTable(int iTable);
 int tarantoolSqlite3EphemeralCreate(BtCursor * pCur, uint32_t filed_count);
 int tarantoolSqlite3EphemeralInsert(BtCursor * pCur, const BtreePayload * pX);
 int tarantoolSqlite3EphemeralFirst(BtCursor * pCur, int * pRes);
-int tarantoolSqlite3EphemeralNext(BtCursor *pCur, int * pRes);
+int tarantoolSqlite3EphemeralNext(BtCursor * pCur, int * pRes);
+int tarantoolSqlite3EphemeralLast(BtCursor * pCur, int * pRes);
+int tarantoolSqlite3EphemeralPrevious(BtCursor * pCur, int * pRes);
 int tarantoolSqlite3EphemeralDrop(BtCursor * pCur);
+int tarantoolSqlite3MovetoUnpackedEphemeral(BtCursor * pCur,
+					    UnpackedRecord * pIdxKey, int *pRes);
 
 /* Compare against the index key under a cursor -
  * the key may span non-adjacent fields in a random order,
