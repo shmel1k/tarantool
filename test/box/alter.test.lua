@@ -678,4 +678,31 @@ return checked_id;
 sp, err = pcall(box.schema.create_space,max_len_string.."1")
 return err;
 
+--[[
+-- gh-2914: check column name validation.
+--
+-- Ensure that col names are validated as identifiers.
+--]]
+--[[ Return id, so, that output not depends on lua decoder --]]
+local checked_id = {}
+for i, identifier in ipairs(identifier_valid_testcases) do
+    local sp = box.schema.create_space('test', { format = {identifier}})
+    sp:drop()
+    table.insert(checked_id, i)
+end
+return checked_id;
+
+local checked_id = {}
+for i, identifier in ipairs(identifier_invalid_testcases) do
+    local sp, err = pcall(box.schema.create_space,'test', { format = {identifier}})
+    if err and string.find( tostring(err), "expected printable symbols only")  then
+        table.insert(checked_id, i)
+    end
+end
+return checked_id;
+
+sp, err = pcall(box.schema.create_space,max_len_string.."1")
+return err;
+
 test_run:cmd("setopt delimiter ''");
+
