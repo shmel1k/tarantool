@@ -840,13 +840,13 @@ pk = s:create_index('pk')
 ...
 sk1 = s:create_index('sk1', { parts = { 2, 'unsigned' } })
 ---
-- error: Ambiguous field type, field 2. Requested type is unsigned but the field has
-    previously been defined as string
+- error: Field 2 ('field2') has 'string' type in space format, but 'unsigned' in index
+    parts
 ...
 sk2 = s:create_index('sk2', { parts = { 3, 'number' } })
 ---
-- error: Ambiguous field type, field 3. Requested type is number but the field has
-    previously been defined as scalar
+- error: Field 3 ('field3') has 'scalar' type in space format, but 'number' in index
+    parts
 ...
 -- Check space format conflicting with index parts.
 sk3 = s:create_index('sk3', { parts = { 2, 'string' } })
@@ -857,8 +857,8 @@ format[2].type = 'unsigned'
 ...
 s:format(format)
 ---
-- error: Ambiguous field type, field 2. Requested type is string but the field has
-    previously been defined as unsigned
+- error: Field 2 ('field2') has 'unsigned' type in space format, but 'string' in index
+    parts
 ...
 s:format()
 ---
