@@ -197,7 +197,7 @@ index_def_list_add(struct rlist *index_def_list, struct index_def *index_def)
  * Others, such as index name change, do not change the data, only
  * metadata, so do not require a rebuild either.
  *
- * Finally, changing index type or number of parts always requires
+ * Finally, changing part field numbers, or part count requires
  * a rebuild.
  */
 bool

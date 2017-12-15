@@ -321,7 +321,6 @@ format = { { name='field1', type='unsigned' }, { name='field2', type='string' },
 s = box.schema.space.create('test', { format = format })
 pk = s:create_index('pk')
 sk1 = s:create_index('sk1', { parts = { 2, 'unsigned' } })
-sk2 = s:create_index('sk2', { parts = { 3, 'number' } })
 
 -- Check space format conflicting with index parts.
 sk3 = s:create_index('sk3', { parts = { 2, 'string' } })
@@ -699,3 +698,42 @@ box.space.test2:format()
 box.space.test2:select{}
 box.space.test1:drop()
 box.space.test2:drop()
+
+--
+-- Allow multiple types on the same field.
+--
+format = {}
+format[1] = {name = 'field1', type = 'unsigned'}
+format[2] = {name = 'field2', type = 'scalar'}
+format[3] = {name = 'field3', type = 'integer'}
+s = box.schema.create_space('test', {format = format})
+pk = s:create_index('pk')
+sk1 = s:create_index('sk1', {parts = {{2, 'number'}}})
+sk2 = s:create_index('sk2', {parts = {{2, 'integer'}}})
+sk3 = s:create_index('sk3', {parts = {{2, 'unsigned'}}})
+sk4 = s:create_index('sk4', {parts = {{3, 'number'}}})
+s:format()
+s:replace{1, '100', -20.2}
+s:replace{1, 100, -20.2}
+s:replace{1, 100, -20}
+s:replace{2, 50, 0}
+s:replace{3, 150, -60}
+s:replace{4, 0, 120}
+pk:select{}
+sk1:select{}
+sk2:select{}
+sk3:select{}
+sk4:select{}
+
+sk1:alter{parts = {{2, 'unsigned'}}}
+sk2:alter{parts = {{2, 'unsigned'}}}
+sk4:alter{parts = {{3, 'integer'}}}
+s:replace{1, 50.5, 1.5}
+s:replace{1, 50, 1.5}
+s:replace{5, 5, 5}
+sk1:select{}
+sk2:select{}
+sk3:select{}
+sk4:select{}
+
+s:drop()
