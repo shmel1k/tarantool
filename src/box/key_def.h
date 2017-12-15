@@ -369,8 +369,7 @@ key_part_cmp(const struct key_part *parts1, uint32_t part_count1,
  * Find out whether alteration of an index has changed it
  * substantially enough to warrant a rebuild or not. For example,
  * change of index id is not a substantial change, whereas change
- * of index type or incompatible change of key parts requires
- * a rebuild.
+ * of index type.
  */
 bool
 key_part_check_compatibility(const struct key_part *old_parts,

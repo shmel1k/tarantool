@@ -522,6 +522,43 @@ tuple_format_free()
 	free(tuple_formats);
 }
 
+bool
+tuple_format_check_compatibility(const struct tuple_format *old_format,
+				 const struct tuple_format *new_format)
+{
+	if (new_format->exact_field_count != old_format->exact_field_count)
+		return false;
+	for (uint32_t i = 0; i < new_format->field_count; ++i) {
+		const struct tuple_field *new_field = &new_format->fields[i];
+		/* New field is formatted. */
+		if (i >= old_format->field_count) {
+			/*
+			 * A new field can be defined with no
+			 * type, but with a name - it is not
+			 * restriction. Nullability is necessary
+			 * if a field is absend in some tuples.
+			 */
+			if (new_field->type == FIELD_TYPE_ANY &&
+			    new_field->is_nullable)
+				continue;
+			else
+				return false;
+		}
+		const struct tuple_field *old_field = &old_format->fields[i];
+		/*
+		 * An old type contains a new type - it is
+		 * restriction.
+		 */
+		if (! field_type_is_compatible(old_field->type,
+					       new_field->type))
+			return false;
+		/* Nullability removal - format is restricted. */
+		if (old_field->is_nullable && !new_field->is_nullable)
+			return false;
+	}
+	return true;
+}
+
 void
 box_tuple_format_ref(box_tuple_format_t *format)
 {

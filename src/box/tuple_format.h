@@ -206,6 +206,21 @@ tuple_format_new(struct tuple_format_vtab *vtab, struct key_def * const *keys,
 		 uint32_t space_field_count);
 
 /**
+ * Check, if a new space format is compatible with an old one. For
+ * example, if a nullability of a field was removed, or a field
+ * type is changed from integer to unsigned, then it is not
+ * compatible. New incompatible format must be checked on alter.
+ * @param old_format Old space format.
+ * @param new_format New space format.
+ *
+ * @retval True, if a new space format is compatible with an old
+ *         one.
+ */
+bool
+tuple_format_check_compatibility(const struct tuple_format *old_format,
+				 const struct tuple_format *new_format);
+
+/**
  * Check that two tuple formats are identical.
  * @param a format a
  * @param b format b

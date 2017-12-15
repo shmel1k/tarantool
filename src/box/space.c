@@ -274,21 +274,13 @@ space_def_check_compatibility(const struct space_def *old_def,
 	for (uint32_t i = 0; i < field_count; ++i) {
 		enum field_type old_type = old_def->fields[i].type;
 		enum field_type new_type = new_def->fields[i].type;
-		if (! field_type_is_compatible(old_type, new_type)) {
+		if (! field_type_is_compatible(old_type, new_type) &&
+		    ! field_type_is_compatible(new_type, old_type)) {
 			const char *msg =
 				tt_sprintf("Can not change a field type from "\
 					   "%s to %s on a not empty space",
 					   field_type_strs[old_type],
 					   field_type_strs[new_type]);
-			diag_set(ClientError, ER_ALTER_SPACE, old_def->name,
-				 msg);
-			return -1;
-		}
-		if (old_def->fields[i].is_nullable &&
-		    !new_def->fields[i].is_nullable) {
-			const char *msg =
-				tt_sprintf("Can not disable is_nullable "\
-					   "on a not empty space");
 			diag_set(ClientError, ER_ALTER_SPACE, old_def->name,
 				 msg);
 			return -1;

@@ -1005,6 +1005,12 @@ vinyl_space_prepare_alter(struct space *old_space, struct space *new_space)
 			 "adding an index to a non-empty space");
 		return -1;
 	}
+	if (! tuple_format_check_compatibility(old_space->format,
+					       new_space->format)) {
+		diag_set(ClientError, ER_UNSUPPORTED, "Vinyl",
+			 "non-empty space format incompatible change");
+		return -1;
+	}
 
 	if (old_space->index_count == new_space->index_count) {
 		/* Check index_defs to be unchanged. */
