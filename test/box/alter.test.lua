@@ -103,37 +103,6 @@ space:truncate()
 space:pairs():totable()
 space:drop()
 
---------------------------------------------------------------------------------
--- #198: names like '' and 'x.y' and 5 and 'primary ' are legal
---------------------------------------------------------------------------------
-
--- invalid identifiers
-box.schema.space.create('invalid.identifier')
-box.schema.space.create('invalid identifier')
-box.schema.space.create('primary ')
-box.schema.space.create('5')
-box.schema.space.create('')
-
--- valid identifiers
-box.schema.space.create('_Abcde'):drop()
-box.schema.space.create('_5'):drop()
-box.schema.space.create('valid_identifier'):drop()
--- some OS-es ship incomplete locales, breaking ID validation
-weird_chars=''
-if jit.os~='OSX' and jit.os~='BSD' then weird_chars='空間' end
-box.schema.space.create('ынтыпрайзный_'..weird_chars):drop() -- unicode
-box.schema.space.create('utf8_наше_Фсё'):drop() -- unicode
-
-space = box.schema.space.create('test')
-
--- invalid identifiers
-space:create_index('invalid.identifier')
-space:create_index('invalid identifier')
-space:create_index('primary ')
-space:create_index('5')
-space:create_index('')
-
-space:drop()
 -- gh-57 Confusing error message when trying to create space with a
 -- duplicate id
 auto = box.schema.space.create('auto_original')
@@ -651,3 +620,62 @@ s = box.schema.create_space('test')
 idx = s:create_index('idx')
 box.space.test == s
 s:drop()
+
+test_run:cmd("setopt delimiter ';'")
+BOX_NAME_MAX = 65000;
+max_len_string = {"1234567890"}
+for i=1,BOX_NAME_MAX/10-1 do table.insert(max_len_string, max_len_string[1]) end
+max_len_string = table.concat(max_len_string, "")
+identifier_valid_testcases = {
+    --[[ Symbols from various unicode groups ,, --]]
+    "1", "_", "sd", "я", "Ё",
+    ".", "@", "#" , "⁋", "☢",
+    "☒", "↹", "〄", "㐤", "곉",
+    "꒮", "꒮", '￼', "𐎆", "⤘",
+    "𐑿", "𝀷","勺", "◉", "༺",
+    "Ԙ","Ⅷ","⅘", "℃", "∉",
+    "∰","⨌","␡", "⑆", "⑳",
+    "╈", "☎", "✇", "⟌", "⣇",
+    "⧭", "⭓", ".", max_len_string
+};
+--[[ Return id, so, that output not depends on lua decoder --]]
+local checked_id = {}
+for i, identifier in ipairs(identifier_valid_testcases) do
+    local sp = box.schema.create_space(identifier)
+    sp:drop()
+    table.insert(checked_id, i)
+end
+return checked_id;
+
+identifier_invalid_testcases = {
+    --[[ Invalid and non printable unicode sequences --]]
+    --[[ 0-3 ASCII control, C0 --]]
+    "\x01", "\x09", "\x1f",
+    --[[ 4-4 ISO/IEC 2022 --]]
+    "\x7f",
+    --[[ 5-7 C1 --]]
+    "\xc2\x80", "\xc2\x90", "\xc2\x9f",
+    --[[ 8- zl line separator --]]
+    "\xE2\x80\xA8",
+    --[[ 9-16 other invalid --]]
+    "\x20\x0b",
+    "\xE2\x80",
+    "\xFE\xFF",
+    "\xC2",
+    "\xED\xB0\x80",
+    "\xE2\x80\xA9",
+    ""
+};
+local checked_id = {}
+for i, identifier in ipairs(identifier_invalid_testcases) do
+    local sp, err = pcall(box.schema.create_space,identifier)
+    if err and string.find( tostring(err), "expected printable symbols only")  then
+        table.insert(checked_id, i)
+    end
+end
+return checked_id;
+
+sp, err = pcall(box.schema.create_space,max_len_string.."1")
+return err;
+
+test_run:cmd("setopt delimiter ''");
