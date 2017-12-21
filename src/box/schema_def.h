@@ -263,8 +263,12 @@ destroy_identifier_check();
  * Throw an error if identifier is not valid.
  */
 static inline void
-identifier_check_xc(const char *str, uint32_t len)
+identifier_check_xc(const char *str, uint32_t len, uint32_t errcode)
 {
+	if (len > BOX_NAME_MAX)
+		tnt_raise(ClientError, errcode,
+			  tt_cstr(str, BOX_INVALID_NAME_MAX),
+			  "identifier is too long");
 	if (! identifier_is_valid(str, len))
 		tnt_raise(ClientError, ER_IDENTIFIER, tt_cstr(str, len));
 }

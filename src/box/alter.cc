@@ -199,12 +199,7 @@ index_def_new_from_tuple(struct tuple *tuple, struct space *space)
 	index_opts_decode(&opts, opts_field, &fiber()->gc);
 	const char *parts = tuple_field(tuple, BOX_INDEX_FIELD_PARTS);
 	uint32_t part_count = mp_decode_array(&parts);
-	if (name_len > BOX_NAME_MAX) {
-		tnt_raise(ClientError, ER_MODIFY_INDEX,
-			  tt_cstr(name, BOX_INVALID_NAME_MAX),
-			  space_name(space), "index name is too long");
-	}
-
+	identifier_check_xc(name, name_len, ER_MODIFY_INDEX);
 	struct key_def *key_def = NULL;
 	struct key_part_def *part_def = (struct key_part_def *)
 			malloc(sizeof(*part_def) * part_count);
@@ -308,12 +303,7 @@ field_def_decode(struct field_def *field, const char **data,
 				     fieldno + TUPLE_INDEX_BASE));
 	}
 	fname_len = strlen(field->name);
-	if (fname_len > BOX_NAME_MAX) {
-		tnt_raise(ClientError, errcode, tt_cstr(space_name, name_len),
-			  tt_sprintf("field %d name is too long",
-				     fieldno + TUPLE_INDEX_BASE));
-	}
-	identifier_check_xc(field->name, (uint32_t) fname_len);
+	identifier_check_xc(field->name, (uint32_t) fname_len, errcode);
 	if (field->type == field_type_MAX) {
 		tnt_raise(ClientError, errcode, tt_cstr(space_name, name_len),
 			  tt_sprintf("field %d has unknown field type",
@@ -362,11 +352,7 @@ space_def_new_from_tuple(struct tuple *tuple, uint32_t errcode,
 	uint32_t name_len;
 	const char *name =
 		tuple_field_str_xc(tuple, BOX_SPACE_FIELD_NAME, &name_len);
-	if (name_len > BOX_NAME_MAX)
-		tnt_raise(ClientError, errcode,
-			  tt_cstr(name, BOX_INVALID_NAME_MAX),
-			  "space name is too long");
-	identifier_check_xc(name, name_len);
+	identifier_check_xc(name, name_len, errcode);
 	uint32_t id = tuple_field_u32_xc(tuple, BOX_SPACE_FIELD_ID);
 	if (id > BOX_SPACE_MAX) {
 		tnt_raise(ClientError, errcode, tt_cstr(name, name_len),
@@ -384,6 +370,7 @@ space_def_new_from_tuple(struct tuple *tuple, uint32_t errcode,
 	const char *engine_name =
 		tuple_field_str_xc(tuple, BOX_SPACE_FIELD_ENGINE,
 				   &engine_name_len);
+	/* Let space name have more strict constraint on name len */
 	if (engine_name_len > ENGINE_NAME_MAX) {
 		tnt_raise(ClientError, errcode, tt_cstr(name, name_len),
 			  "space engine name is too long");
@@ -1737,11 +1724,6 @@ user_def_new_from_tuple(struct tuple *tuple)
 	uint32_t name_len;
 	const char *name = tuple_field_str_xc(tuple, BOX_USER_FIELD_NAME,
 					      &name_len);
-	if (name_len > BOX_NAME_MAX) {
-		tnt_raise(ClientError, ER_CREATE_USER,
-			  tt_cstr(name, BOX_INVALID_NAME_MAX),
-			  "user name is too long");
-	}
 	size_t size = user_def_sizeof(name_len);
 	/* Use calloc: in case user password is empty, fill it with \0 */
 	struct user_def *user = (struct user_def *) malloc(size);
@@ -1759,7 +1741,7 @@ user_def_new_from_tuple(struct tuple *tuple)
 		tnt_raise(ClientError, ER_CREATE_USER,
 			  user->name, "unknown user type");
 	}
-	identifier_check_xc(user->name, name_len);
+	identifier_check_xc(user->name, name_len, ER_CREATE_USER);
 	access_check_ddl(user->owner, SC_USER);
 	/*
 	 * AUTH_DATA field in _user space should contain
@@ -1893,10 +1875,7 @@ func_def_new_from_tuple(const struct tuple *tuple)
 	uint32_t len;
 	const char *name = tuple_field_str_xc(tuple, BOX_FUNC_FIELD_NAME,
 					      &len);
-	if (len > BOX_NAME_MAX)
-		tnt_raise(ClientError, ER_CREATE_FUNCTION,
-			  tt_cstr(name, BOX_INVALID_NAME_MAX),
-			  "function name is too long");
+	identifier_check_xc(name, len, ER_CREATE_FUNCTION);
 	struct func_def *def = (struct func_def *) malloc(func_def_sizeof(len));
 	if (def == NULL)
 		tnt_raise(OutOfMemory, func_def_sizeof(len), "malloc", "def");
@@ -2019,13 +1998,8 @@ coll_def_new_from_tuple(const struct tuple *tuple, struct coll_def *def)
 	const char *options =
 		tuple_field_with_type_xc(tuple, BOX_COLLATION_FIELD_OPTIONS,
 					 MP_MAP);
-
-	if (name_len > BOX_NAME_MAX)
-		tnt_raise(ClientError, ER_CANT_CREATE_COLLATION,
-			  "collation name is too long");
-	if (locale_len > BOX_NAME_MAX)
-		tnt_raise(ClientError, ER_CANT_CREATE_COLLATION,
-			  "collation locale is too long");
+	identifier_check_xc(def->locale, locale_len, ER_CANT_CREATE_COLLATION);
+	identifier_check_xc(def->name, name_len, ER_CANT_CREATE_COLLATION);
 
 	assert(def->type == COLL_TYPE_ICU); /* no more defined now */
 	if (opts_decode(&def->icu, coll_icu_opts_reg, &options,
@@ -2528,11 +2502,7 @@ sequence_def_new_from_tuple(struct tuple *tuple, uint32_t errcode)
 	uint32_t name_len;
 	const char *name = tuple_field_str_xc(tuple, BOX_USER_FIELD_NAME,
 					      &name_len);
-	if (name_len > BOX_NAME_MAX) {
-		tnt_raise(ClientError, errcode,
-			  tt_cstr(name, BOX_INVALID_NAME_MAX),
-			  "sequence name is too long");
-	}
+	identifier_check_xc(name ,name_len, errcode);
 	size_t sz = sequence_def_sizeof(name_len);
 	struct sequence_def *def = (struct sequence_def *) malloc(sz);
 	if (def == NULL)
