@@ -644,6 +644,9 @@ box.schema.index.create = function(space_id, name, options)
     check_param(space_id, 'space_id', 'number')
     check_param(name, 'name', 'string')
     check_param_table(options, create_index_template)
+    if not box.space[space_id] then
+        box.error(box.error.NO_SUCH_SPACE, '#'..tostring(space_id))
+    end
 
     local options_defaults = {
         type = 'tree',
@@ -655,10 +658,19 @@ box.schema.index.create = function(space_id, name, options)
         other = {parts = { 1, 'unsigned' }, unique = true},
     }
     options_defaults = type_dependent_defaults[options.type]
-            and type_dependent_defaults[options.type]
             or type_dependent_defaults.other
+    if not options.parts then
+        local fieldno = options_defaults.parts[1]
+        local format = box.space[space_id]:format()
+        if #format >= fieldno then
+            local t = format[fieldno].type
+            if t ~= 'any' then
+                options.parts = {{fieldno, format[fieldno].type}}
+            end
+        end
+    end
     options = update_param_table(options, options_defaults)
-    if box.space[space_id] ~= nil and box.space[space_id].engine == 'vinyl' then
+    if box.space[space_id].engine == 'vinyl' then
         options_defaults = {
             page_size = box.cfg.vinyl_page_size,
             range_size = box.cfg.vinyl_range_size,
