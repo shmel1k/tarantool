@@ -1434,6 +1434,9 @@ sqlite3GenerateConstraintChecks(Parse * pParse,		/* The parser context */
 		   (overrideError != OE_Abort && overrideError != OE_Default)) {
 			UniqueByteCodeNeeded = true;
 		}
+		if (!IsPrimaryKeyIndex(pIdx) && ! UniqueByteCodeNeeded){
+			continue;
+		}
 
 		if (aRegIdx[ix] == 0)
 			continue;	/* Skip indices that do not change */
@@ -1506,18 +1509,13 @@ sqlite3GenerateConstraintChecks(Parse * pParse,		/* The parser context */
 					sqlite3VdbeResolveLabel(v, skip_if_null);
 				}
 			}
-			if (IsPrimaryKeyIndex(pIdx) || UniqueByteCodeNeeded) {
 				sqlite3VdbeAddOp3(v, OP_MakeRecord, regNewData + 1,
 						  pTab->nCol, aRegIdx[ix]);
 				VdbeComment((v, "for %s", pIdx->zName));
-			}
 		} else {
-			/* kyukhin: for Tarantool, this should be evaluated to NOP.  */
-			if (IsPrimaryKeyIndex(pIdx) || UniqueByteCodeNeeded) {
 				sqlite3VdbeAddOp3(v, OP_MakeRecord, regIdx,
 						  pIdx->nColumn, aRegIdx[ix]);
 				VdbeComment((v, "for %s", pIdx->zName));
-			}
 		}
 
 
