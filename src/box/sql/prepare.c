@@ -163,14 +163,12 @@ extern int
 sqlite3InitDatabase(sqlite3 * db, char **pzErrMsg)
 {
 	int rc;
-	int i;
 #ifndef SQLITE_OMIT_DEPRECATED
 	int size;
 #endif
 	Db *pDb;
 	int meta[5];
 	InitData initData;
-	int openedTransaction = 0;
 
 	assert(db->mdb.pSchema);
 	assert(sqlite3_mutex_held(db->mutex));
@@ -189,22 +187,6 @@ sqlite3InitDatabase(sqlite3 * db, char **pzErrMsg)
 	/* Create a cursor to hold the database open
 	 */
 	pDb = &db->mdb;
-	if (pDb->pBt == 0) {
-		return SQLITE_OK;
-	}
-
-	/* If there is not already a read-only (or read-write) transaction opened
-	 * on the b-tree database, open one now. If a transaction is opened, it
-	 * will be closed before this function returns.
-	 */
-	if (!sqlite3BtreeIsInReadTrans(pDb->pBt)) {
-		rc = sqlite3BtreeBeginTrans(pDb->pBt, 0, 0);
-		if (rc != SQLITE_OK) {
-			sqlite3SetString(pzErrMsg, db, sqlite3ErrStr(rc));
-			goto initone_error_out;
-		}
-		openedTransaction = 1;
-	}
 
 	/* Get the database meta information.
 	 *
@@ -218,9 +200,6 @@ sqlite3InitDatabase(sqlite3 * db, char **pzErrMsg)
 	 * Note: The #defined SQLITE_UTF* symbols in sqliteInt.h correspond to
 	 * the possible values of meta[4].
 	 */
-	for (i = 0; i < ArraySize(meta); i++) {
-		sqlite3BtreeGetMeta(pDb->pBt, i + 1, (u32 *) & meta[i]);
-	}
 	pDb->pSchema->schema_cookie = meta[BTREE_SCHEMA_VERSION - 1];
 
 	/* If opening a non-empty database, check the text encoding. For the
@@ -243,7 +222,6 @@ sqlite3InitDatabase(sqlite3 * db, char **pzErrMsg)
 #else
 		pDb->pSchema->cache_size = SQLITE_DEFAULT_CACHE_SIZE;
 #endif
-		sqlite3BtreeSetCacheSize(pDb->pBt, pDb->pSchema->cache_size);
 	}
 
 	/*
@@ -259,7 +237,7 @@ sqlite3InitDatabase(sqlite3 * db, char **pzErrMsg)
 	if (pDb->pSchema->file_format > SQLITE_MAX_FILE_FORMAT) {
 		sqlite3SetString(pzErrMsg, db, "unsupported file format");
 		rc = SQLITE_ERROR;
-		goto initone_error_out;
+		goto error_out;
 	}
 
 	/* Read the schema information out of the schema tables
@@ -290,14 +268,6 @@ sqlite3InitDatabase(sqlite3 * db, char **pzErrMsg)
 	}
 	if (rc == SQLITE_OK) {
 		DbSetProperty(db, DB_SchemaLoaded);
-	}
-
-	/* Jump here for an error that occurs after successfully allocating
-	 * curMain. For an error that occurs before that point, jump to error_out.
-	 */
- initone_error_out:
-	if (openedTransaction) {
-		sqlite3BtreeCommit(pDb->pBt);
 	}
 
  error_out:
@@ -359,53 +329,6 @@ sqlite3ReadSchema(Parse * pParse)
 		pParse->nErr++;
 	}
 	return rc;
-}
-
-/*
- * Check schema cookies in all databases.  If any cookie is out
- * of date set pParse->rc to SQLITE_SCHEMA.  If all schema cookies
- * make no changes to pParse->rc.
- */
-static void
-schemaIsValid(Parse * pParse)
-{
-	sqlite3 *db = pParse->db;
-	int rc;
-	int cookie;
-
-	assert(pParse->checkSchema);
-	assert(sqlite3_mutex_held(db->mutex));
-	int openedTransaction = 0;	/* True if a transaction is opened */
-	Btree *pBt = db->mdb.pBt;	/* Btree database to read cookie from */
-
-	/* If there is not already a read-only (or read-write) transaction opened
-	 * on the b-tree database, open one now. If a transaction is opened, it
-	 * will be closed immediately after reading the meta-value.
-	 */
-	if (!sqlite3BtreeIsInReadTrans(pBt)) {
-		rc = sqlite3BtreeBeginTrans(pBt, 0, 0);
-		if (rc == SQLITE_NOMEM || rc == SQLITE_IOERR_NOMEM) {
-			sqlite3OomFault(db);
-		}
-		if (rc != SQLITE_OK)
-			return;
-		openedTransaction = 1;
-	}
-
-	/* Read the schema cookie from the database. If it does not match the
-	 * value stored as part of the in-memory schema representation,
-	 * set Parse.rc to SQLITE_SCHEMA.
-	 */
-	sqlite3BtreeGetMeta(pBt, BTREE_SCHEMA_VERSION, (u32 *) & cookie);
-	if (cookie != db->mdb.pSchema->schema_cookie) {
-		sqlite3ResetOneSchema(db);
-		pParse->rc = SQLITE_SCHEMA;
-	}
-
-	/* Close the transaction, if one was opened. */
-	if (openedTransaction) {
-		sqlite3BtreeCommit(pBt);
-	}
 }
 
 /*
@@ -499,8 +422,6 @@ sqlite3Prepare(sqlite3 * db,	/* Database handle. */
 	 * but it does *not* override schema lock detection, so this all still
 	 * works even if READ_UNCOMMITTED is set.
 	 */
-	Btree MAYBE_UNUSED *pBt = db->mdb.pBt;
-	assert(pBt);
 	sParse.db = db;
 	if (nBytes >= 0 && (nBytes == 0 || zSql[nBytes - 1] != 0)) {
 		char *zSqlCopy;
@@ -528,9 +449,6 @@ sqlite3Prepare(sqlite3 * db,	/* Database handle. */
 
 	if (sParse.rc == SQLITE_DONE)
 		sParse.rc = SQLITE_OK;
-	if (sParse.checkSchema) {
-		schemaIsValid(&sParse);
-	}
 	if (db->mallocFailed) {
 		sParse.rc = SQLITE_NOMEM_BKPT;
 	}

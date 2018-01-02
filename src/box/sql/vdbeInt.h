@@ -99,11 +99,7 @@ struct VdbeCursor {
 	u8 seekOp;		/* Most recent seek operation on this cursor */
 	u8 wrFlag;		/* The wrFlag argument to sqlite3BtreeCursor() */
 #endif
-	Bool isEphemeral:1;	/* True for an ephemeral table */
-	Bool isOrdered:1;	/* True if the table is not BTREE_UNORDERED */
-	Btree *pBtx;		/* Separate file holding temporary table */
 	i64 seqCount;		/* Sequence counter */
-	int *aAltMap;		/* Mapping from table to index column numbers */
 
 	/* Cached OP_Column parse information is only valid if cacheStatus matches
 	 * Vdbe.cacheCtr.  Vdbe.cacheCtr will never take on the value of
@@ -129,11 +125,9 @@ struct VdbeCursor {
 		VdbeSorter *pSorter;	/* CURTYPE_SORTER. Sorter object */
 	} uc;
 	KeyInfo *pKeyInfo;	/* Info about index keys needed by index cursors */
-	u32 iHdrOffset;		/* Offset to next unparsed byte of the header */
 	Pgno pgnoRoot;		/* Root page of the open btree cursor */
 	i16 nField;		/* Number of fields in the header */
 	u16 nHdrParsed;		/* Number of header fields parsed so far */
-	i64 movetoTarget;	/* Argument to the deferred sqlite3BtreeMoveto() */
 	const u8 *aRow;		/* Data for the current row, if all on one page */
 	u32 payloadSize;	/* Total number of bytes in the record */
 	u32 szRow;		/* Byte available in aRow */

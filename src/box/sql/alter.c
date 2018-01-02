@@ -283,7 +283,6 @@ sqlite3AlterFinishAddColumn(Parse * pParse, Token * pColDef)
 	 */
 	r1 = sqlite3GetTempReg(pParse);
 	sqlite3VdbeAddOp3(v, OP_ReadCookie, 0, r1, BTREE_FILE_FORMAT);
-	sqlite3VdbeUsesBtree(v);
 	sqlite3VdbeAddOp2(v, OP_AddImm, r1, -2);
 	sqlite3VdbeAddOp2(v, OP_IfPos, r1, sqlite3VdbeCurrentAddr(v) + 2);
 	VdbeCoverage(v);

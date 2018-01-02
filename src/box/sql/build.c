@@ -109,7 +109,6 @@ sqlite3FinishCoding(Parse * pParse)
 			sqlite3VdbeJumpHere(v, 0);
 			Schema *pSchema;
 			if (DbMaskTest(pParse->cookieMask, 0) != 0) {
-				sqlite3VdbeUsesBtree(v);
 				pSchema = db->mdb.pSchema;
 				sqlite3VdbeAddOp4Int(v, OP_Transaction,	/* Opcode */
 						     0,	/* P1 */
@@ -1111,9 +1110,7 @@ sqlite3AddCheckConstraint(Parse * pParse,	/* Parsing context */
 {
 #ifndef SQLITE_OMIT_CHECK
 	Table *pTab = pParse->pNewTable;
-	sqlite3 *db = pParse->db;
-	if (pTab && !sqlite3BtreeIsReadonly(db->mdb.pBt)
-	    ) {
+	if (pTab) {
 		pTab->pCheck =
 		    sqlite3ExprListAppend(pParse, pTab->pCheck, pCheckExpr);
 		if (pParse->constraintName.n) {
@@ -4007,7 +4004,6 @@ sqlite3CodeVerifySchema(Parse * pParse)
 {
 	Parse *pToplevel = sqlite3ParseToplevel(pParse);
 
-	assert(pParse->db->mdb.pBt != 0);
 	if (DbMaskTest(pToplevel->cookieMask, 0) == 0) {
 		DbMaskSet(pToplevel->cookieMask, 0);
 	}
