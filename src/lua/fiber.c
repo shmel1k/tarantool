@@ -286,9 +286,15 @@ lua_fiber_run_f(va_list ap)
 	int result;
 	int coro_ref = va_arg(ap, int);
 	struct lua_State *L = va_arg(ap, struct lua_State *);
-
-	result = luaT_call(L, lua_gettop(L) - 1, 0);
-
+	int top = lua_gettop(L);
+	int params = top - 1;
+	result = luaT_call(L, params, LUA_MULTRET);
+	int num_results = lua_gettop(L);
+	if (num_results > 0) {
+		struct lua_State *child_L = (struct lua_State *)
+			fiber_get_key(fiber(), FIBER_KEY_RESULT);
+		lua_xmove(L, child_L, num_results);
+	}
 	/* Destroy local storage */
 	int storage_ref = (int)(intptr_t)
 		fiber_get_key(fiber(), FIBER_KEY_LUA_STORAGE);
@@ -323,6 +329,7 @@ lbox_fiber_create(struct lua_State *L)
 	lua_xmove(L, child_L, lua_gettop(L));
 	/* XXX: 'fiber' is leaked if this throws a Lua error. */
 	lbox_pushfiber(L, f->fid);
+	fiber_set_key(f, FIBER_KEY_RESULT, child_L);
 	fiber_start(f, coro_ref, child_L);
 	return 1;
 }
@@ -557,6 +564,51 @@ lbox_fiber_wakeup(struct lua_State *L)
 	return 0;
 }
 
+static int
+lbox_fiber_join(struct lua_State *L)
+{
+	struct fiber *fiber = lbox_checkfiber(L, 1);
+	fiber_wait_join(fiber);
+	bool fiber_was_cancelled = fiber->flags & FIBER_IS_CANCELLED;
+	struct error *e = NULL;
+	if (fiber->f_ret != 0 && !fiber_was_cancelled) {
+		/*
+		 * We do not want to spoil the diag of the current
+		 * fiber so not calling luaT_error().
+		 */
+		assert(!diag_is_empty(&fiber->diag));
+		e = diag_last_error(&fiber->diag);
+		error_ref(e);
+		luaT_pusherror(L, e);
+		diag_clear(&fiber->diag);
+	}
+	struct lua_State *child_L = fiber_get_key(fiber, FIBER_KEY_RESULT);
+	int num_ret = 0;
+	if (child_L != NULL) {
+		num_ret = lua_gettop(child_L);
+		lua_xmove(child_L, L, num_ret);
+	}
+	fiber_recycle(fiber);
+	if (e != NULL) {
+		error_unref(e);
+		lua_error(L);
+	}
+	return num_ret;
+}
+
+static int
+lbox_fiber_set_joinable(struct lua_State *L)
+{
+
+	if (lua_gettop(L) != 2) {
+		luaL_error(L, "fiber.set_joinable(id, yesno): bad arguments");
+	}
+	struct fiber *fiber = lbox_checkfiber(L, 1);
+	bool yesno = lua_toboolean(L, 2);
+	fiber_set_joinable(fiber, yesno);
+	return 0;
+}
+
 static const struct luaL_Reg lbox_fiber_meta [] = {
 	{"id", lbox_fiber_id},
 	{"name", lbox_fiber_name},
@@ -565,6 +617,8 @@ static const struct luaL_Reg lbox_fiber_meta [] = {
 	{"testcancel", lbox_fiber_testcancel},
 	{"__serialize", lbox_fiber_serialize},
 	{"__tostring", lbox_fiber_tostring},
+	{"join", lbox_fiber_join},
+	{"set_joinable", lbox_fiber_set_joinable},
 	{"wakeup", lbox_fiber_wakeup},
 	{"__index", lbox_fiber_index},
 	{NULL, NULL}
@@ -579,6 +633,8 @@ static const struct luaL_Reg fiberlib[] = {
 	{"find", lbox_fiber_find},
 	{"kill", lbox_fiber_cancel},
 	{"wakeup", lbox_fiber_wakeup},
+	{"join", lbox_fiber_join},
+	{"set_joinable", lbox_fiber_set_joinable},
 	{"cancel", lbox_fiber_cancel},
 	{"testcancel", lbox_fiber_testcancel},
 	{"create", lbox_fiber_create},

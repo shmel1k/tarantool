@@ -402,6 +402,21 @@ _ = fiber.create(fn1)
 session_type
 session_type = nil
 
+f1 = fiber.create(function() fiber.sleep(.01) box.error(box.error.ILLEGAL_PARAMS, 'oh my')  end)
+f1:set_joinable(true)
+f1:join()
+-- test double join
+f1:join()
+
+flag = false
+f2 = fiber.create(function() fiber.sleep(.01) flag = true  end)
+fiber.set_joinable(f2, true)
+fiber.join(f2)
+flag
+function hello() fiber.sleep(.01) return "hello" end
+f3 = fiber.create(hello)
+fiber.set_joinable(f3, true)
+fiber.join(f3)
 fiber = nil
 
 --
