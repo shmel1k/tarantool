@@ -332,18 +332,21 @@ recovery_finalize(struct recovery *r, struct xstream *stream)
 	/*
 	 * Check that the last xlog file has rows.
 	 */
-	if (vclockset_last(&r->wal_dir.index) != NULL &&
-	    vclock_sum(&r->vclock) ==
-	    vclock_sum(vclockset_last(&r->wal_dir.index))) {
-		/*
-		 * Delete the last empty xlog file.
-		 */
+	if (vclockset_last(&r->wal_dir.index) != NULL) {
 		char *name = xdir_format_filename(&r->wal_dir,
 						  vclock_sum(&r->vclock),
 						  NONE);
-		if (unlink(name) != 0) {
-			tnt_raise(SystemError, "%s: failed to unlink file",
-				  name);
+		if (access(name, F_OK) == 0 ||
+		    vclock_sum(&r->vclock) ==
+		    vclock_sum(vclockset_last(&r->wal_dir.index))) {
+			/*
+			 * Delete the last empty xlog file.
+			 */
+			say_info("recovery_finalize: delete xlog");
+			if (unlink(name) != 0) {
+				tnt_raise(SystemError, "%s: failed to unlink file",
+					  name);
+			}
 		}
 	}
 }
@@ -529,4 +532,3 @@ recovery_stop_local(struct recovery *r)
 }
 
 /* }}} */
-
