@@ -204,9 +204,10 @@ txn_begin_in_engine(struct engine *engine, struct txn *txn);
  * select.
  */
 static inline int
-txn_begin_ro_stmt(struct space *space, struct txn **txn)
+txn_begin_ro_stmt(struct space *space, struct txn **txn, size_t *size)
 {
 	*txn = in_txn();
+	*size = region_used(&fiber()->gc);
 	if (*txn != NULL) {
 		struct engine *engine = space->engine;
 		return txn_begin_in_engine(engine, *txn);
@@ -215,14 +216,16 @@ txn_begin_ro_stmt(struct space *space, struct txn **txn)
 }
 
 static inline void
-txn_commit_ro_stmt(struct txn *txn)
+txn_commit_ro_stmt(struct txn *txn, size_t size)
 {
 	assert(txn == in_txn());
 	if (txn) {
 		assert(txn->engine);
 		/* nothing to do */
 	} else {
-		fiber_gc();
+		(void)size;
+		region_truncate(&fiber()->gc, size);
+		//fiber_gc();
 	}
 }
 
@@ -368,21 +371,21 @@ txn_begin_stmt_xc(struct space *space)
 	return txn;
 }
 
-static inline struct txn *
-txn_begin_ro_stmt_xc(struct space *space)
-{
-	struct txn *txn;
-	if (txn_begin_ro_stmt(space, &txn) != 0)
-		diag_raise();
-	return txn;
-}
+//static inline struct txn *
+//txn_begin_ro_stmt_xc(struct space *space)
+//{
+//	struct txn *txn;
+//	if (txn_begin_ro_stmt(space, &txn) != 0)
+//		diag_raise();
+//	return txn;
+//}
 
-static inline void
-txn_commit_stmt_xc(struct txn *txn, struct request *request)
-{
-	if (txn_commit_stmt(txn, request) != 0)
-		diag_raise();
-}
+//static inline void
+//txn_commit_stmt_xc(struct txn *txn, struct request *request)
+//{
+//	if (txn_commit_stmt(txn, request) != 0)
+//		diag_raise();
+//}
 
 static inline void
 txn_check_singlestatement_xc(struct txn *txn, const char *where)

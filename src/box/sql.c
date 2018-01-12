@@ -275,10 +275,13 @@ int tarantoolSqlite3MovetoUnpacked(BtCursor *pCur, UnpackedRecord *pIdxKey,
 
 	ks = sqlite3VdbeMsgpackRecordLen(pIdxKey->aMem,
 					 pIdxKey->nField);
+	/* Replace with just region_alloc if ks is more precise #3035 */
 	k = region_reserve(&fiber()->gc, ks);
 	if (k == NULL) return SQLITE_NOMEM;
-	ke = k + sqlite3VdbeMsgpackRecordPut((u8 *)k, pIdxKey->aMem,
+	ks = sqlite3VdbeMsgpackRecordPut((u8 *)k, pIdxKey->aMem,
 					     pIdxKey->nField);
+	region_alloc(&fiber()->gc, ks);
+	ke = k + ks;
 
 	switch (pIdxKey->opcode) {
 	default:

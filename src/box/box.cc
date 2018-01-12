@@ -808,7 +808,8 @@ box_select(struct port *port, uint32_t space_id, uint32_t index_id,
 	});
 
 	struct txn *txn;
-	if (txn_begin_ro_stmt(space, &txn) != 0)
+	size_t size;
+	if (txn_begin_ro_stmt(space, &txn, &size) != 0)
 		return -1;
 
 	struct iterator *it = index_create_iterator(index, type,
@@ -840,7 +841,7 @@ box_select(struct port *port, uint32_t space_id, uint32_t index_id,
 		txn_rollback_stmt();
 		return -1;
 	}
-	txn_commit_ro_stmt(txn);
+	txn_commit_ro_stmt(txn, size);
 	return 0;
 }
 

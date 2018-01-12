@@ -544,6 +544,8 @@ int sqlite3VdbeMemFinalize(Mem *, FuncDef *);
 const char *sqlite3OpcodeName(int);
 int sqlite3VdbeMemGrow(Mem * pMem, int n, int preserve);
 int sqlite3VdbeMemClearAndResize(Mem * pMem, int n);
+int
+memAllocateOnRegion(Mem *p, size_t size);
 int sqlite3VdbeCloseStatement(Vdbe *, int);
 void sqlite3VdbeFrameDelete(VdbeFrame *);
 int sqlite3VdbeFrameRestore(VdbeFrame *);

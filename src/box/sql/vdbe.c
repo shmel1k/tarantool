@@ -2759,14 +2759,13 @@ case OP_MakeRecord: {
 	 * be one of the input registers (because the following call to
 	 * sqlite3VdbeMemClearAndResize() could clobber the value before it is used).
 	 */
-	if (sqlite3VdbeMemClearAndResize(pOut, (int)nByte)) {
+	if (memAllocateOnRegion(pOut, (size_t)nByte) != SQLITE_OK) {
 		goto no_mem;
 	}
 
 	/* Write the record */
 	assert(pOp->p3>0 && pOp->p3<=(p->nMem+1 - p->nCursor));
 	pOut->n = sqlite3VdbeMsgpackRecordPut((u8 *)pOut->z, pData0, nField);
-	pOut->flags = MEM_Blob;
 	REGISTER_TRACE(pOp->p3, pOut);
 	UPDATE_MAX_BLOBSIZE(pOut);
 	break;

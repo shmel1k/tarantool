@@ -1179,6 +1179,21 @@ valueNew(sqlite3 * db, struct ValueNewStat4Ctx *p)
 }
 
 /*
+ * Allocate a specified size on a region.
+ * This function is used to prevent extra data copy.
+ * Designed to only use in Op_MakeRecord.
+ */
+
+int
+memAllocateOnRegion(Mem *p, size_t size){
+	vdbeMemClear(p);
+	p->flags = MEM_Ephem | MEM_Blob;
+	p->n = size;
+	p->z = region_alloc(&fiber()->gc, size);
+	return p->z ? SQLITE_OK : SQLITE_NOMEM;
+}
+
+/*
  * The expression object indicated by the second argument is guaranteed
  * to be a scalar SQL function. If
  *
