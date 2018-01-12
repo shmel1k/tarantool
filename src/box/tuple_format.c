@@ -158,12 +158,14 @@ tuple_format_create(struct tuple_format *format, struct key_def * const *keys,
 			struct tuple_field *field =
 				&format->fields[part->fieldno];
 			if (part->fieldno >= field_count) {
-				field->is_nullable = part->is_nullable;
-			} else if (field->is_nullable != part->is_nullable) {
+				field->is_nullable = key_part_is_nullable(part);
+			} else if (tuple_field_is_nullable(field) !=
+				   key_part_is_nullable(part)) {
 				diag_set(ClientError, ER_NULLABLE_MISMATCH,
 					 part->fieldno + TUPLE_INDEX_BASE,
-					 field->is_nullable ? "nullable" :
-					 "not nullable", part->is_nullable ?
+					 tuple_field_is_nullable(field) ?
+					 "nullable" : "not nullable",
+					 key_part_is_nullable(part) ?
 					 "nullable" : "not nullable");
 				return -1;
 			}
@@ -373,7 +375,8 @@ tuple_format_eq(const struct tuple_format *a, const struct tuple_format *b)
 			return false;
 		if (a->fields[i].is_key_part != b->fields[i].is_key_part)
 			return false;
-		if (a->fields[i].is_nullable != b->fields[i].is_nullable)
+		if (tuple_field_is_nullable(a->fields + i) !=
+		    tuple_field_is_nullable(b->fields + i))
 			return false;
 	}
 	return true;
@@ -467,7 +470,7 @@ tuple_init_field_map(const struct tuple_format *format, uint32_t *field_map,
 	enum mp_type mp_type = mp_typeof(*pos);
 	const struct tuple_field *field = &format->fields[0];
 	if (key_mp_type_validate(field->type, mp_type, ER_FIELD_TYPE,
-				 TUPLE_INDEX_BASE, field->is_nullable))
+				 TUPLE_INDEX_BASE, tuple_field_is_nullable(field)))
 		return -1;
 	mp_next(&pos);
 	/* other fields...*/
@@ -478,7 +481,7 @@ tuple_init_field_map(const struct tuple_format *format, uint32_t *field_map,
 		mp_type = mp_typeof(*pos);
 		if (key_mp_type_validate(field->type, mp_type, ER_FIELD_TYPE,
 					 i + TUPLE_INDEX_BASE,
-					 field->is_nullable))
+					 tuple_field_is_nullable(field)))
 			return -1;
 		if (field->offset_slot != TUPLE_OFFSET_SLOT_NIL) {
 			field_map[field->offset_slot] =
