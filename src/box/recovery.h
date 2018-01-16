@@ -36,6 +36,7 @@
 #include "xlog.h"
 #include "vclock.h"
 #include "tt_uuid.h"
+#include <sys/stat.h>
 
 #if defined(__cplusplus)
 extern "C" {
