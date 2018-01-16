@@ -4499,7 +4499,7 @@ sqlite3VdbeIdxKeyCompare(sqlite3 * db,			/* Database connection */
 	assert(sqlite3BtreeCursorIsValid(pCur));
 	if (pCur->curFlags & BTCF_TaCursor ||
 	    pCur->curFlags & BTCF_TEphemCursor) {
-		return tarantoolSqlite3IdxKeyCompare(pCur, pUnpacked, res);
+		return sqlIdxKeyCompare(pCur, pUnpacked, res);
 	}
 	nCellKey = sqlite3BtreePayloadSize(pCur);
 	/* nCellKey will always be between 0 and 0xffffffff because of the way

@@ -38,14 +38,14 @@
   ((pgno) & 1023)
 
 /* Load database schema from Tarantool. */
-void tarantoolSqlite3LoadSchema(InitData * init);
+void sqlLoadSchema(InitData *init);
 
 /* Misc */
 const char *tarantoolErrorMessage();
 
 /* Storage interface. */
-int tarantoolSqlite3CloseCursor(BtCursor * pCur);
-const void *tarantoolSqlite3PayloadFetch(BtCursor * pCur, u32 * pAmt);
+const void *sqlPayloadFetch(BtCursor *pCur, u32 *pAmt);
+int sqlMoveToUnpacked(BtCursor *pCur, UnpackedRecord *pIdxKey, int *pRes);
 
 /**
  * Try to get a current tuple field using its field map.
@@ -56,19 +56,21 @@ const void *tarantoolSqlite3PayloadFetch(BtCursor * pCur, u32 * pAmt);
  * @retval     NULL Can not use field_map - it does not contain
  *         offset to @a fieldno.
  */
-const void *
-tarantoolSqlite3TupleColumnFast(BtCursor *pCur, u32 fieldno, u32 *field_size);
+const void *sqlTupleColumnFast(BtCursor *pCur, u32 fieldno, u32 *field_size);
 
-int tarantoolSqlite3First(BtCursor * pCur, int *pRes);
-int tarantoolSqlite3Last(BtCursor * pCur, int *pRes);
-int tarantoolSqlite3Next(BtCursor * pCur, int *pRes);
-int tarantoolSqlite3Previous(BtCursor * pCur, int *pRes);
-int tarantoolSqlite3MovetoUnpacked(BtCursor * pCur, UnpackedRecord * pIdxKey,
-				   int *pRes);
-int tarantoolSqlite3Count(BtCursor * pCur, i64 * pnEntry);
-int tarantoolSqlite3Insert(BtCursor * pCur, const BtreePayload * pX);
-int tarantoolSqlite3Delete(BtCursor * pCur, u8 flags);
-int tarantoolSqlite3ClearTable(int iTable);
+/* Cursor positioning interface. */
+int sqlCursorCreate(BtCursor *pCur);
+int sqlCursorClose(BtCursor *pCur);
+int sqlCursorFirst(BtCursor *pCur, int *pRes);
+int sqlCursorLast(BtCursor *pCur, int *pRes);
+int sqlCursorNext(BtCursor *pCur, int *pRes);
+int sqlCursorPrevious(BtCursor *pCur, int *pRes);
+
+/* SQL interface. */
+int sqlCount(BtCursor *pCur, i64 *pnEntry);
+int sqlInsert(BtCursor *pCur, const BtreePayload *pX);
+int sqlDelete(BtCursor *pCur);
+int sqlClearTable(BtCursor *pCur);
 
 /* Rename table pTab with zNewName by inserting new tuple to _space.
  * SQL statement, which creates table with new name is saved in pzSqlStmt.
@@ -86,67 +88,54 @@ int tarantoolSqlite3RenameParentTable(int iTab, const char *zOldParentName,
 				      const char *zNewParentName);
 
 /* Interface for ephemeral tables. */
-int tarantoolSqlite3EphemeralCreate(BtCursor * pCur, uint32_t filed_count,
-				    struct coll *aColl);
-int tarantoolSqlite3EphemeralInsert(BtCursor * pCur, const BtreePayload * pX);
-int tarantoolSqlite3EphemeralDelete(BtCursor * pCur);
-int tarantoolSqlite3EphemeralFirst(BtCursor * pCur, int * pRes);
-int tarantoolSqlite3EphemeralNext(BtCursor * pCur, int * pRes);
-int tarantoolSqlite3EphemeralLast(BtCursor * pCur, int * pRes);
-int tarantoolSqlite3EphemeralCount(BtCursor * pCur, i64 * pnEntry);
-int tarantoolSqlite3EphemeralPrevious(BtCursor * pCur, int * pRes);
-int tarantoolSqlite3EphemeralDrop(BtCursor * pCur);
-int tarantoolSqlite3EphemeralClearTable(BtCursor * pCur);
-int tarantoolSqlite3MovetoUnpackedEphemeral(BtCursor * pCur,
-					    UnpackedRecord * pIdxKey, int *pRes);
-int tarantoolSqlite3EphemeralGetMaxId(BtCursor * pCur, uint32_t fieldno,
-				       uint64_t * max_id);
+int sqlEphemeralSpaceCreate(BtCursor *pCur, uint32_t filed_count,
+			    struct coll *aColl);
+int sqlEphemeralSpaceDrop(BtCursor *pCur);
 
 /* Compare against the index key under a cursor -
  * the key may span non-adjacent fields in a random order,
  * ex: [4]-[1]-[2]
  */
-int tarantoolSqlite3IdxKeyCompare(BtCursor * pCur, UnpackedRecord * pUnpacked,
-				  int *res);
+int sqlIdxKeyCompare(BtCursor *pCur, UnpackedRecord *pUnpacked, int *res);
 
 /*
  * The function assumes the cursor is open on _schema.
  * Increment max_id and store updated tuple in the cursor
  * object.
  */
-int tarantoolSqlite3IncrementMaxid(BtCursor * pCur);
+int sqlIncrementMaxid(BtCursor *pCur);
 
 /*
  * Render "format" array for _space entry.
  * Returns result size.
  * If buf==NULL estimate result size.
  */
-int tarantoolSqlite3MakeTableFormat(Table * pTable, void *buf);
+int sqlMakeTableFormat(Table *pTable, void *buf);
 
 /*
  * Format "opts" dictionary for _space entry.
  * Returns result size.
  * If buf==NULL estimate result size.
  */
-int tarantoolSqlite3MakeTableOpts(Table * pTable, const char *zSql, void *buf);
+int sqlMakeTableOpts(Table *pTable, const char *zSql, void *buf);
 
 /*
  * Format "parts" array for _index entry.
  * Returns result size.
  * If buf==NULL estimate result size.
  */
-int tarantoolSqlite3MakeIdxParts(Index * index, void *buf);
+int sqlMakeIdxParts(Index *index, void *buf);
 
 /*
  * Format "opts" dictionary for _index entry.
  * Returns result size.
  * If buf==NULL estimate result size.
  */
-int tarantoolSqlite3MakeIdxOpts(Index * index, const char *zSql, void *buf);
+int sqlMakeIdxOpts(Index *index, const char *zSql, void *buf);
 
 /*
  * Fetch maximum value from ineger column number `fieldno` of space_id/index_id
  * Return 0 on success, -1 otherwise
  */
-int tarantoolSqlGetMaxId(uint32_t space_id, uint32_t index_id, uint32_t fieldno,
-			 uint64_t * max_id);
+int sqlGetMaxId(BtCursor *pCur, uint32_t index_id, uint32_t fieldno,
+		uint64_t *max_id);

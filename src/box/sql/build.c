@@ -1551,15 +1551,13 @@ createIndex(Parse * pParse,
 
 	/* Format "opts" and "parts" for _index entry. */
 	zOpts = sqlite3DbMallocRaw(pParse->db,
-				   tarantoolSqlite3MakeIdxOpts(pIndex, zSql,
-							       NULL) +
-				   tarantoolSqlite3MakeIdxParts(pIndex,
-								NULL) + 2);
+				   sqlMakeIdxOpts(pIndex, zSql, NULL) +
+				   sqlMakeIdxParts(pIndex, NULL) + 2);
 	if (!zOpts)
 		return;
-	zOptsSz = tarantoolSqlite3MakeIdxOpts(pIndex, zSql, zOpts);
+	zOptsSz = sqlMakeIdxOpts(pIndex, zSql, zOpts);
 	zParts = zOpts + zOptsSz + 1;
-	zPartsSz = tarantoolSqlite3MakeIdxParts(pIndex, zParts);
+	zPartsSz = sqlMakeIdxParts(pIndex, zParts);
 #if SQLITE_DEBUG
 	/* NUL-termination is necessary for VDBE trace facility only */
 	zOpts[zOptsSz] = 0;
@@ -1679,17 +1677,16 @@ createSpace(Parse * pParse,
 	int zOptsSz, zFormatSz;
 
 	zOpts = sqlite3DbMallocRaw(pParse->db,
-				   tarantoolSqlite3MakeTableFormat(p, NULL) +
-				   tarantoolSqlite3MakeTableOpts(p, zStmt,
-								 NULL) + 2);
+				   sqlMakeTableFormat(p, NULL) +
+				   sqlMakeTableOpts(p, zStmt, NULL) + 2);
 	if (!zOpts) {
 		zOptsSz = 0;
 		zFormat = NULL;
 		zFormatSz = 0;
 	} else {
-		zOptsSz = tarantoolSqlite3MakeTableOpts(p, zStmt, zOpts);
+		zOptsSz = sqlMakeTableOpts(p, zStmt, zOpts);
 		zFormat = zOpts + zOptsSz + 1;
-		zFormatSz = tarantoolSqlite3MakeTableFormat(p, zFormat);
+		zFormatSz = sqlMakeTableFormat(p, zFormat);
 #if SQLITE_DEBUG
 		/* NUL-termination is necessary for VDBE-tracing facility only */
 		zOpts[zOptsSz] = 0;

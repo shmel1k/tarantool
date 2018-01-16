@@ -1021,7 +1021,7 @@ selectInnerLoop(Parse * pParse,		/* The parser context */
 				int regRec = sqlite3GetTempReg(pParse);
 				/* Last column is required for ID. */
 				int regCopy = sqlite3GetTempRange(pParse, nResultCol + 1);
-				sqlite3VdbeAddOp3(v, OP_NextIdEphemeral, iParm,
+				sqlite3VdbeAddOp3(v, OP_NextId, iParm,
 						  0, regCopy + nResultCol);
 				/* Positioning ID column to be last in inserted tuple.
 				 * NextId -> regCopy + n + 1
@@ -1499,7 +1499,7 @@ generateSortTail(Parse * pParse,	/* Parsing context */
 	case SRT_Table:
 	case SRT_EphemTab: {
 			int regCopy = sqlite3GetTempRange(pParse,  nColumn);
-			sqlite3VdbeAddOp3(v, OP_NextIdEphemeral, iParm, 0, regRowid);
+			sqlite3VdbeAddOp3(v, OP_NextId, iParm, 0, regRowid);
 			sqlite3VdbeAddOp3(v, OP_Copy, regRow, regCopy, nSortData - 1);
 			sqlite3VdbeAddOp3(v, OP_MakeRecord, regCopy, nColumn + 1, regRow);
 			sqlite3VdbeAddOp2(v, OP_IdxInsert, iParm, regRow);
@@ -3034,7 +3034,7 @@ generateOutputSubroutine(Parse * pParse,	/* Parsing context */
 	case SRT_EphemTab:{
 			int regRec = sqlite3GetTempReg(pParse);
 			int regCopy = sqlite3GetTempRange(pParse, pIn->nSdst + 1);
-			sqlite3VdbeAddOp3(v, OP_NextIdEphemeral, pDest->iSDParm,
+			sqlite3VdbeAddOp3(v, OP_NextId, pDest->iSDParm,
 					  0, regCopy + pIn->nSdst);
 			sqlite3VdbeAddOp3(v, OP_Copy, pIn->iSdst, regCopy,
 					  pIn->nSdst - 1);

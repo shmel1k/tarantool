@@ -180,7 +180,7 @@ sqlite3InitDatabase(sqlite3 * db, char **pzErrMsg)
 	initData.db = db;
 
 	/* Load schema from Tarantool - into the primary db only. */
-	tarantoolSqlite3LoadSchema(&initData);
+	sqlLoadSchema(&initData);
 
 	if (initData.rc) {
 		rc = initData.rc;

@@ -2600,8 +2600,8 @@ case OP_Column: {
 		if (pC->eCurType == CURTYPE_BTREE &&
 		    pCrsr != NULL && ((pCrsr->curFlags & BTCF_TaCursor) != 0 ||
 		    (pCrsr->curFlags & BTCF_TEphemCursor)) &&
-		    (zParse = tarantoolSqlite3TupleColumnFast(pCrsr, p2,
-							      &size)) != NULL) {
+		    (zParse = sqlTupleColumnFast(pCrsr, p2,
+						 &size)) != NULL) {
 			/*
 			 * Special case for tarantool spaces: for
 			 * indexed fields a tuple field map can be
@@ -3447,6 +3447,7 @@ case OP_OpenWrite:
 	sqlite3BtreeCursorHintFlags(pCur->uc.pCursor,
 				    (pOp->p5 & (OPFLAG_BULKCSR|OPFLAG_SEEKEQ)));
 	if (rc) goto abort_due_to_error;
+	sqlCursorCreate(pCur->uc.pCursor);
 	break;
 }
 
@@ -3570,8 +3571,8 @@ case OP_OpenTEphemeral: {
 					    pCx->uc.pCursor);
 		pCx->isTable = 1;
 	}
-	rc = tarantoolSqlite3EphemeralCreate(pCx->uc.pCursor, pOp->p2,
-					     pOp->p4.pKeyInfo->aColl[0]);
+	rc = sqlEphemeralSpaceCreate(pCx->uc.pCursor, pOp->p2,
+				     pOp->p4.pKeyInfo->aColl[0]);
 	if (rc) goto abort_due_to_error;
 	break;
 }
@@ -4223,39 +4224,12 @@ case OP_NextId: {     /* out3 */
 	pOut = &aMem[pOp->p3];
 
 	/* This opcode is Tarantool specific.  */
-	assert(pC->uc.pCursor->curFlags & BTCF_TaCursor);
+	assert(pC->uc.pCursor->curFlags & BTCF_TaCursor ||
+	       pC->uc.pCursor->curFlags & BTCF_TEphemCursor);
 
 	pgno = pC->pgnoRoot;
-
-	tarantoolSqlGetMaxId(SQLITE_PAGENO_TO_SPACEID(pgno),
-			     SQLITE_PAGENO_TO_INDEXID(pgno),
-			     p2,
-			     (uint64_t *) &pOut->u.i);
-
-	pOut->u.i += 1;
-	pOut->flags = MEM_Int;
-	break;
-}
-
-/* Opcode: NextIdEphemeral P1 P2 P3 * *
- * Synopsis: r[P3]=get_max(space_index[P1]{Column[P2]})
- *
- * This opcode works in the same way as OP_NextId does, except it is
- * applied only for ephemeral tables. The difference is in the fact that
- * all ephemeral tables don't have space_id (to be more precise it equals to zero).
- */
-case OP_NextIdEphemeral: {
-	VdbeCursor *pC;
-	int p2;
-	pC = p->apCsr[pOp->p1];
-	p2 = pOp->p2;
-	pOut = &aMem[pOp->p3];
-
-	assert(pC->uc.pCursor->curFlags & BTCF_TEphemCursor);
-
-	rc = tarantoolSqlite3EphemeralGetMaxId(pC->uc.pCursor, p2,
-					       (uint64_t *) &pOut->u.i);
-	if (rc) goto abort_due_to_error;
+	sqlGetMaxId(pC->uc.pCursor, SQLITE_PAGENO_TO_INDEXID(pgno), p2,
+		    (uint64_t *) &pOut->u.i);
 
 	pOut->u.i += 1;
 	pOut->flags = MEM_Int;
@@ -5467,7 +5441,12 @@ case OP_Destroy: {     /* out2 */
 case OP_Clear: {
 	assert(p->readOnly==0);
 	assert(DbMaskTest(p->btreeMask, pOp->p2));
-	rc = tarantoolSqlite3ClearTable(pOp->p1);
+	/* Create surrogate cursor in order to unify sql* interface. */
+	BtCursor pCur;
+	pCur.pgnoRoot = pOp->p1;
+	sqlCursorCreate(&pCur);
+	rc = sqlClearTable(&pCur);
+	sqlCursorClose(&pCur);
 	if (rc) goto abort_due_to_error;
 	break;
 }
@@ -6673,7 +6652,7 @@ case OP_IncMaxid: {
 	pC = p->apCsr[pOp->p1];
 	assert(pC != 0);
 
-	rc = tarantoolSqlite3IncrementMaxid(pC->uc.pCursor);
+	rc = sqlIncrementMaxid(pC->uc.pCursor);
 	if (rc!=SQLITE_OK) {
 		goto abort_due_to_error;
 	}

@@ -577,7 +577,7 @@ sqlite3Insert(Parse * pParse,	/* Parser context */
 					  0, (char*)pKeyInfo, P4_KEYINFO);
 			addrL = sqlite3VdbeAddOp1(v, OP_Yield, dest.iSDParm);
 			VdbeCoverage(v);
-			sqlite3VdbeAddOp3(v, OP_NextIdEphemeral, srcTab, 2, regTempId);
+			sqlite3VdbeAddOp3(v, OP_NextId, srcTab, 2, regTempId);
 			sqlite3VdbeAddOp3(v, OP_Copy, regFromSelect, regCopy, nColumn-1);
 			sqlite3VdbeAddOp3(v, OP_MakeRecord, regCopy,
 					  nColumn + 1, regRec);

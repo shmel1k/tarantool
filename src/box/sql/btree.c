@@ -3654,10 +3654,10 @@ sqlite3BtreeCloseCursor(BtCursor * pCur)
 		unlockBtreeIfUnused(pBt);
 		sqlite3_free(pCur->aOverflow);
 		if (pCur->curFlags & BTCF_TaCursor) {
-			tarantoolSqlite3CloseCursor(pCur);
+			sqlCursorClose(pCur);
 		} else if (pCur->curFlags & BTCF_TEphemCursor) {
-			tarantoolSqlite3EphemeralDrop(pCur);
-			tarantoolSqlite3CloseCursor(pCur);
+			sqlEphemeralSpaceDrop(pCur);
+			sqlCursorClose(pCur);
 		}
 		/* sqlite3_free(pCur); */
 		sqlite3BtreeLeave(pBtree);
@@ -3753,7 +3753,7 @@ sqlite3BtreePayloadSize(BtCursor * pCur)
 	if (pCur->curFlags & BTCF_TaCursor ||
 	    pCur->curFlags & BTCF_TEphemCursor) {
 		u32 sz;
-		tarantoolSqlite3PayloadFetch(pCur, &sz);
+		sqlPayloadFetch(pCur, &sz);
 		return sz;
 	}
 	getCellInfo(pCur);
@@ -3883,7 +3883,7 @@ accessPayload(BtCursor * pCur,	/* Cursor pointing to entry to read from */
 	    pCur->curFlags & BTCF_TEphemCursor) {
 		const void *pPayload;
 		u32 sz;
-		pPayload = tarantoolSqlite3PayloadFetch(pCur, &sz);
+		pPayload = sqlPayloadFetch(pCur, &sz);
 		if ((uptr) (offset + amt) > sz)
 			return SQLITE_CORRUPT_BKPT;
 		memcpy(pBuf, pPayload + offset, amt);
@@ -4214,7 +4214,7 @@ sqlite3BtreePayloadFetch(BtCursor * pCur, u32 * pAmt)
 {
 	if (pCur->curFlags & BTCF_TaCursor ||
 	    pCur->curFlags & BTCF_TEphemCursor) {
-		return tarantoolSqlite3PayloadFetch(pCur, pAmt);
+		return sqlPayloadFetch(pCur, pAmt);
 	}
 	return fetchPayload(pCur, pAmt);
 }
@@ -4468,11 +4468,9 @@ sqlite3BtreeFirst(BtCursor * pCur, int *pRes)
 
 	assert(cursorOwnsBtShared(pCur));
 	assert(sqlite3_mutex_held(pCur->pBtree->db->mutex));
-	if (pCur->curFlags & BTCF_TaCursor) {
-		return tarantoolSqlite3First(pCur, pRes);
-	}
-	if (pCur->curFlags & BTCF_TEphemCursor) {
-		return tarantoolSqlite3EphemeralFirst(pCur, pRes);
+	if (pCur->curFlags & BTCF_TaCursor ||
+	    pCur->curFlags & BTCF_TEphemCursor) {
+		return sqlCursorFirst(pCur, pRes);
 	}
 	rc = moveToRoot(pCur);
 	if (rc == SQLITE_OK) {
@@ -4501,12 +4499,9 @@ sqlite3BtreeLast(BtCursor * pCur, int *pRes)
 	assert(cursorOwnsBtShared(pCur));
 	assert(sqlite3_mutex_held(pCur->pBtree->db->mutex));
 
-	if (pCur->curFlags & BTCF_TaCursor) {
-		return tarantoolSqlite3Last(pCur, pRes);
-	}
-
-	if (pCur->curFlags & BTCF_TEphemCursor) {
-		return tarantoolSqlite3EphemeralLast(pCur, pRes);
+	if (pCur->curFlags & BTCF_TaCursor ||
+	    pCur->curFlags & BTCF_TEphemCursor) {
+		return sqlCursorLast(pCur, pRes);
 	}
 
 	/* If the cursor already points to the last entry, this is a no-op. */
@@ -4595,19 +4590,15 @@ sqlite3BtreeMovetoUnpacked(BtCursor * pCur,	/* The cursor to be moved */
 	assert(pCur->eState != CURSOR_VALID
 	       || (pIdxKey == 0) == (pCur->curIntKey != 0));
 
-	if (pCur->curFlags & BTCF_TaCursor) {
+	if (pCur->curFlags & BTCF_TaCursor ||
+	    pCur->curFlags & BTCF_TEphemCursor) {
 		assert(pIdxKey);
 		/*
 		 * Note: pIdxKey/intKey are mutually-exclusive and all Tarantool
 		 * tables are WITHOUT ROWID, hence no intKey parameter.
 		 * BiasRight is a hint used during binary search; ignore it for now.
 		 */
-		return tarantoolSqlite3MovetoUnpacked(pCur, pIdxKey, pRes);
-	}
-
-	if (pCur->curFlags & BTCF_TEphemCursor) {
-		assert(pIdxKey);
-		return tarantoolSqlite3MovetoUnpackedEphemeral(pCur, pIdxKey, pRes);
+		return sqlMoveToUnpacked(pCur, pIdxKey, pRes);
 	}
 	/* If the cursor is already positioned at the point we are trying
 	 * to move to, then just return without doing any work
@@ -4975,9 +4966,7 @@ sqlite3BtreeNext(BtCursor * pCur, int *pRes)
 				return rc;
 			}
 		}
-		if (pCur->curFlags & BTCF_TEphemCursor)
-			return tarantoolSqlite3EphemeralNext(pCur, pRes);
-		return tarantoolSqlite3Next(pCur, pRes);
+		return sqlCursorNext(pCur, pRes);
 	}
 	if (pCur->eState != CURSOR_VALID)
 		return btreeNext(pCur, pRes);
@@ -5090,11 +5079,9 @@ sqlite3BtreePrevious(BtCursor * pCur, int *pRes)
 	*pRes = 0;
 	pCur->curFlags &= ~(BTCF_AtLast | BTCF_ValidOvfl | BTCF_ValidNKey);
 	pCur->info.nSize = 0;
-	if (pCur->curFlags & BTCF_TaCursor) {
-		return tarantoolSqlite3Previous(pCur, pRes);
-	}
-	if (pCur->curFlags & BTCF_TEphemCursor) {
-		return tarantoolSqlite3EphemeralPrevious(pCur, pRes);
+	if (pCur->curFlags & BTCF_TaCursor ||
+	    pCur->curFlags & BTCF_TEphemCursor) {
+		return sqlCursorPrevious(pCur, pRes);
 	}
 	if (pCur->eState != CURSOR_VALID
 	    || pCur->aiIdx[pCur->iPage] == 0
@@ -7449,13 +7436,11 @@ sqlite3BtreeInsert(BtCursor * pCur,	/* Insert data into the table of this cursor
 	 */
 	assert((pX->pKey == 0) == (pCur->pKeyInfo == 0));
 
-	if (pCur->curFlags & BTCF_TaCursor) {
-		return tarantoolSqlite3Insert(pCur, pX);
+	if (pCur->curFlags & BTCF_TaCursor ||
+	    pCur->curFlags & BTCF_TEphemCursor) {
+		return sqlInsert(pCur, pX);
 	}
 
-	if (pCur->curFlags & BTCF_TEphemCursor) {
-		return tarantoolSqlite3EphemeralInsert(pCur, pX);
-	}
 	/* Save the positions of any other cursors open on this table.
 	 *
 	 * In some cases, the call to btreeMoveto() below is a no-op. For
@@ -7656,13 +7641,11 @@ sqlite3BtreeDelete(BtCursor * pCur, u8 flags)
 	assert(pCur->eState == CURSOR_VALID);
 	assert((flags & ~(BTREE_SAVEPOSITION | BTREE_AUXDELETE)) == 0);
 
-	if (pCur->curFlags & BTCF_TaCursor) {
-		return tarantoolSqlite3Delete(pCur, flags);
+	if (pCur->curFlags & BTCF_TaCursor ||
+	    pCur->curFlags & BTCF_TEphemCursor) {
+		return sqlDelete(pCur);
 	}
 
-	if (pCur->curFlags & BTCF_TEphemCursor) {
-		return tarantoolSqlite3EphemeralDelete(pCur);
-	}
 	assert(pCur->aiIdx[pCur->iPage] < pCur->apPage[pCur->iPage]->nCell);
 
 	iCellDepth = pCur->iPage;
@@ -7976,8 +7959,9 @@ sqlite3BtreeClearTable(Btree * p, int iTable, int *pnChange)
 int
 sqlite3BtreeClearTableOfCursor(BtCursor * pCur)
 {
-	if (pCur->curFlags & BTCF_TEphemCursor)
-		return tarantoolSqlite3EphemeralClearTable(pCur);
+	if (pCur->curFlags & BTCF_TEphemCursor ||
+	    pCur->curFlags & BTCF_TaCursor)
+		return sqlClearTable(pCur);
 	return sqlite3BtreeClearTable(pCur->pBtree, pCur->pgnoRoot, 0);
 }
 
@@ -8106,12 +8090,9 @@ sqlite3BtreeCount(BtCursor * pCur, i64 * pnEntry)
 	i64 nEntry = 0;		/* Value to return in *pnEntry */
 	int rc;			/* Return code */
 
-	if (pCur->curFlags & BTCF_TaCursor) {
-		return tarantoolSqlite3Count(pCur, pnEntry);
-	}
-
-	if (pCur->curFlags & BTCF_TEphemCursor) {
-		return tarantoolSqlite3EphemeralCount(pCur, pnEntry);
+	if (pCur->curFlags & BTCF_TaCursor ||
+	    pCur->curFlags & BTCF_TEphemCursor) {
+		return sqlCount(pCur, pnEntry);
 	}
 
 	if (pCur->pgnoRoot == 0) {

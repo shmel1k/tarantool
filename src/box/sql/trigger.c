@@ -278,14 +278,11 @@ sqlite3FinishTrigger(Parse * pParse,	/* Parser context */
 		iRecord = ++pParse->nMem;
 
 		zOpts = sqlite3DbMallocRaw(pParse->db,
-					   tarantoolSqlite3MakeTableOpts(0,
-									 zSql,
-									 NULL) +
-					   1);
+					   sqlMakeTableOpts(0, zSql, NULL) + 1);
 		if (db->mallocFailed)
 			goto triggerfinish_cleanup;
 
-		zOptsSz = tarantoolSqlite3MakeTableOpts(0, zSql, zOpts);
+		zOptsSz = sqlMakeTableOpts(0, zSql, zOpts);
 
 		zName = sqlite3DbStrDup(pParse->db, zName);
 		if (db->mallocFailed)
