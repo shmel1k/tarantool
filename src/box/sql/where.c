@@ -2812,7 +2812,7 @@ whereLoopAddBtree(WhereLoopBuilder * pBuilder,	/* WHERE clause information */
 		sPk.nColumn = 1;
 		sPk.aiColumn = &aiColumnPk;
 		sPk.aiRowLogEst = aiRowEstPk;
-		sPk.onError = OE_Replace;
+		sPk.onError = ON_CONFLICT_ACTION_REPLACE;
 		sPk.pTable = pTab;
 		sPk.szIdxRow = pTab->szTabRow;
 		aiRowEstPk[0] = pTab->nRowLogEst;

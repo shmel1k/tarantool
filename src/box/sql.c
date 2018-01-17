@@ -29,6 +29,7 @@
  * SUCH DAMAGE.
  */
 #include <assert.h>
+#include "field_def.h"
 #include "sql.h"
 #include "sql/sqlite3.h"
 
@@ -1354,7 +1355,7 @@ int tarantoolSqlite3MakeTableFormat(Table *pTable, void *buf)
 		}
 		p = enc->encode_str(p, t, strlen(t));
 		p = enc->encode_str(p, "is_nullable", 11);
-		p = enc->encode_bool(p, aCol[i].notNull == OE_None);
+		p = enc->encode_bool(p, aCol[i].notNull == ON_CONFLICT_ACTION_NONE);
 	}
 	return (int)(p - base);
 }
@@ -1439,7 +1440,7 @@ int tarantoolSqlite3MakeIdxParts(SqliteIndex *pIndex, void *buf)
 			p = enc->encode_uint(p, collation->id);
 		}
 		p = enc->encode_str(p, "is_nullable", 11);
-		p = enc->encode_bool(p, aCol[col].notNull == OE_None);
+		p = enc->encode_bool(p, aCol[col].notNull == ON_CONFLICT_ACTION_NONE);
 	}
 	return (int)(p - base);
 }
