@@ -241,6 +241,40 @@ pragmaLocate(const char *zName)
 	return lwr > upr ? 0 : &aPragmaName[mid];
 }
 
+#ifdef PRINT_PRAGMA
+#undef PRINT_PRAGMA
+#endif
+#define PRINT_PRAGMA(pragma_name, pragma_flag) do { \
+	if (user_session->sql_flags & (pragma_flag)) { \
+		printf(#pragma_name" --  [true] \n"); \
+	} else { \
+		printf(#pragma_name" --  [false] \n"); \
+	} \
+} while (0)
+
+static void
+printActivePragmas(struct session *user_session)
+{
+	printf("List of pragmas: \n");
+	PRINT_PRAGMA("recursive_triggers", SQLITE_RecTriggers);
+	PRINT_PRAGMA("select_trace", SQLITE_SelectTrace);
+	PRINT_PRAGMA("sql_trace", SQLITE_SqlTrace);
+	PRINT_PRAGMA("vdbe_addoptrace", SQLITE_VdbeAddopTrace);
+	PRINT_PRAGMA("vdbe_debug", SQLITE_SqlTrace | SQLITE_VdbeListing
+				   | SQLITE_VdbeTrace);
+	PRINT_PRAGMA("vdbe_eqp", SQLITE_VdbeEQP);
+	PRINT_PRAGMA("vdbe_listing", SQLITE_VdbeListing);
+	PRINT_PRAGMA("vdbe_trace", SQLITE_VdbeTrace);
+	PRINT_PRAGMA("where_trace", SQLITE_WhereTrace);
+	printf("Other available pragmas: \n");
+	printf("-- collation_list \n");
+	printf("-- foreign_key_check \n");
+	printf("-- foreign_key_list \n");
+	printf("-- parser_trace \n");
+	printf("-- stats \n");
+	printf("-- index_info($table_name) \n");
+}
+
 /*
  * Process a pragma statement.
  *
@@ -282,8 +316,11 @@ sqlite3Pragma(Parse * pParse, Token * pId,	/* First part of [schema.]id field */
 	pDb = &db->mdb;
 
 	zLeft = sqlite3NameFromToken(db, pId);
-	if (!zLeft)
+	if (!zLeft) {
+		printActivePragmas(user_session);
 		return;
+	}
+
 	if (minusFlag) {
 		zRight = sqlite3MPrintf(db, "-%T", pValue);
 	} else {
