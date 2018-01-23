@@ -780,9 +780,40 @@ tmpfile = fio.pathjoin(tmpdir, "test")
 fh = fio.open(tmpfile, { 'O_RDWR', 'O_TRUNC', 'O_CREAT' }, 0777)
 ---
 ...
+fh:file_size()
+---
+- 0
+...
 fh:write('helloworld!')
 ---
 - true
+...
+fh:file_size()
+---
+- 11
+...
+fh:seek(0)
+---
+- 0
+...
+fh:read()
+---
+- helloworld!
+...
+fh:seek(0)
+---
+- 0
+...
+len = fh:read(buf:reserve(fh:file_size()))
+---
+...
+ffi.string(buf:alloc(len), len)
+---
+- helloworld!
+...
+fh:file_size()
+---
+- 11
 ...
 fh:seek(0)
 ---

@@ -24,12 +24,18 @@ end
 
 local fio_methods = {}
 
+-- read() -> str
+-- read(buf) -> len
 -- read(size) -> str
 -- read(buf, size) -> len
 fio_methods.read = function(self, buf, size)
     local tmpbuf
+    if (not ffi.istype(const_char_ptr_t, buf) and buf == nil) or
+        (ffi.istype(const_char_ptr_t, buf) and size == nil) then
+        size = self:file_size()
+    end
     if not ffi.istype(const_char_ptr_t, buf) then
-        size = buf
+        size = buf or size
         tmpbuf = buffer.IBUF_SHARED
         tmpbuf:reset()
         buf = tmpbuf:reserve(size)
@@ -149,6 +155,12 @@ fio_methods.stat = function(self)
     return internal.fstat(self.fh)
 end
 
+fio_methods.file_size = function (self)
+    local offset = self:seek(0, "SEEK_CUR")
+    local result = self:seek(0, 'SEEK_END')
+    self:seek(offset, "SEEK_SET")
+    return result
+end
 
 local fio_mt = { __index = fio_methods }
 
