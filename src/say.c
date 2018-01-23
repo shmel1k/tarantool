@@ -269,9 +269,11 @@ log_rotate(const struct log *log)
 }
 
 void
-say_logrotate(int signo)
+say_logrotate(struct ev_loop *loop, struct ev_signal *w, int revents)
 {
-	(void) signo;
+	(void) loop;
+	(void) w;
+	(void) revents;
 	int saved_errno = errno;
 	struct log *log;
 	rlist_foreach_entry(log, &log_rotate_list, in_log_list) {
@@ -535,7 +537,6 @@ say_logger_init(const char *init_str, int level, int nonblock,
 	say_set_log_level(level);
 	log_background = background;
 	log_pid = log_default->pid;
-	signal(SIGHUP, say_logrotate);
 	say_set_log_format(say_format_by_name(format));
 
 	if (background) {
