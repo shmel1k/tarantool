@@ -270,15 +270,17 @@ int tarantoolSqlite3MovetoUnpacked(BtCursor *pCur, UnpackedRecord *pIdxKey,
 {
 	int rc, res_success;
 	size_t ks;
-	const char *k, *ke;
+	const char *ke;
 	enum iterator_type iter_type;
+	struct ta_cursor *taCur = pCur->pTaCursor;
 
 	ks = sqlite3VdbeMsgpackRecordLen(pIdxKey->aMem,
 					 pIdxKey->nField);
-	k = region_reserve(&fiber()->gc, ks);
-	if (k == NULL) return SQLITE_NOMEM;
-	ke = k + sqlite3VdbeMsgpackRecordPut((u8 *)k, pIdxKey->aMem,
-					     pIdxKey->nField);
+	taCur = cursor_create(taCur, ks);
+	ke = taCur->key + sqlite3VdbeMsgpackRecordPut((u8 *)taCur->key,
+						      pIdxKey->aMem,
+						      pIdxKey->nField);
+	pCur->pTaCursor = taCur;
 
 	switch (pIdxKey->opcode) {
 	default:
@@ -316,7 +318,7 @@ int tarantoolSqlite3MovetoUnpacked(BtCursor *pCur, UnpackedRecord *pIdxKey,
 		res_success = 0;
 		break;
 	}
-	rc = cursor_seek(pCur, pRes, iter_type, k, ke);
+	rc = cursor_seek(pCur, pRes, iter_type, taCur->key, ke);
 	if (*pRes == 0) {
 		*pRes = res_success;
 		/*
@@ -1018,13 +1020,6 @@ cursor_seek(BtCursor *pCur, int *pRes, enum iterator_type type,
 		return SQLITE_NOMEM;
 	}
 	pCur->pTaCursor = c;
-
-	/* Copy key if necessary. */
-	if (key_size != 0) {
-		memcpy(c->key, k, ke-k);
-		ke = c->key + (ke-k);
-		k = c->key;
-	}
 
 	c->iter = box_index_iterator(space_id, index_id, type, k, ke);
 	if (c->iter == NULL) {
