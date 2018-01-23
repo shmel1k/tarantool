@@ -36,6 +36,34 @@
 
 #include "fiber.h"
 
+static int
+ishex(int x)
+{
+        return (x >= '0' && x <= '9') ||
+               (x >= 'a' && x <= 'f') ||
+               (x >= 'A' && x <= 'F');
+}
+
+static int
+urldecode(const char *s, char *dec)
+{
+        char *o;
+        const char *end = s + strlen(s);
+        int c;
+
+        for (o = dec; s <= end; o++) {
+                c = *s++;
+                if (c == '+') c = ' ';
+                else if (c == '%' && (!ishex(*s++) ||
+                                      !ishex(*s++) ||
+                                      !sscanf(s - 2, "%2x", &c)))
+                        return -1;
+                *o = c;
+        }
+
+        return o - dec;
+}
+
 /**
  * libcurl callback for CURLOPT_WRITEFUNCTION
  * @see https://curl.haxx.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
@@ -134,7 +162,40 @@ httpc_request_new(struct httpc_env *env, const char *method,
 		curl_easy_setopt(req->curl_request.easy, CURLOPT_CUSTOMREQUEST, method);
 	}
 
-	curl_easy_setopt(req->curl_request.easy, CURLOPT_URL, url);
+	const char prefix[] = "http+unix://";
+	int len = strlen(prefix);
+	if (strncmp(url, prefix, len) == 0) {
+		char http_url[256];
+		char encoded_socket_path[256];
+		char socket_path[256];
+
+		const char* beginning_of_socket_path = url + len;
+
+		const char* slash = strchr(beginning_of_socket_path, '/');
+		const char* rest = 0;
+
+		if (slash != NULL) {
+			rest = slash;
+		}
+		else {
+			rest = url + strlen(url);
+		}
+
+		len = rest - beginning_of_socket_path;
+		strncpy(encoded_socket_path,
+			beginning_of_socket_path,
+			len);
+		encoded_socket_path[len] = '\0';
+
+		len = urldecode(encoded_socket_path, socket_path);
+		socket_path[len] = '\0';
+		sprintf(http_url, "http://localhost%s", rest);
+
+		curl_easy_setopt(req->curl_request.easy, CURLOPT_UNIX_SOCKET_PATH, socket_path);
+		curl_easy_setopt(req->curl_request.easy, CURLOPT_URL, http_url);
+	} else {
+		curl_easy_setopt(req->curl_request.easy, CURLOPT_URL, url);
+	}
 
 	curl_easy_setopt(req->curl_request.easy, CURLOPT_FOLLOWLOCATION, 1);
 	curl_easy_setopt(req->curl_request.easy, CURLOPT_SSL_VERIFYPEER, 1);
