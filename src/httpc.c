@@ -32,9 +32,35 @@
 #include "httpc.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <curl/curl.h>
 
 #include "fiber.h"
+
+static const char *HTTP_LOCALHOST = "http://localhost";
+static const char *HTTP_UNIX_PREFIX = "http+unix://";
+
+/**
+ * Function to decode encoded symbols in http url.
+ */
+static int
+urldecode(const char *s, const char *end, char *dec)
+{
+	char *o;
+	int c;
+
+	for (o = dec; s != end; o++) {
+		c = *s++;
+		if (c == '+') c = ' ';
+		else if (c == '%' && (!isxdigit(*s++) ||
+				      !isxdigit(*s++) ||
+				      !sscanf(s - 2, "%2x", &c)))
+			return -1;
+		*o = c;
+	}
+	*o = '\0';
+	return o - dec;
+}
 
 /**
  * libcurl callback for CURLOPT_WRITEFUNCTION
@@ -134,7 +160,44 @@ httpc_request_new(struct httpc_env *env, const char *method,
 		curl_easy_setopt(req->curl_request.easy, CURLOPT_CUSTOMREQUEST, method);
 	}
 
-	curl_easy_setopt(req->curl_request.easy, CURLOPT_URL, url);
+	const int prefix_len = strlen(HTTP_UNIX_PREFIX);
+	if (strncmp(url, HTTP_UNIX_PREFIX, prefix_len) == 0) {
+		const int url_len = strlen(url);
+		char *http_url = (char *) malloc(strlen(HTTP_LOCALHOST) +
+						 url_len - prefix_len + 1);
+		if (http_url == NULL) {
+			diag_set(OutOfMemory,
+				 strlen(HTTP_LOCALHOST) + url_len - prefix_len + 1,
+				 "malloc",
+				 "input url too long");
+			goto error;
+		}
+
+		const char *socket_path_start = url + prefix_len;
+		const char *socket_path_end = strchr(socket_path_start, '/');
+		if (socket_path_end == NULL)
+			socket_path_end = url + url_len;
+
+		char *socket_path = (char *) malloc(socket_path_end - socket_path_start + 1);
+		if (socket_path == NULL) {
+			diag_set(OutOfMemory,
+				 socket_path_end - socket_path_start + 1,
+				 "malloc",
+				 "socket path too long");
+			free(http_url);
+			goto error;
+		}
+		urldecode(socket_path_start, socket_path_end, socket_path);
+		sprintf(http_url, "%s%s", HTTP_LOCALHOST, socket_path_end);
+
+		curl_easy_setopt(req->curl_request.easy, CURLOPT_UNIX_SOCKET_PATH, socket_path);
+		curl_easy_setopt(req->curl_request.easy, CURLOPT_URL, http_url);
+
+		free(http_url);
+		free(socket_path);
+	} else {
+		curl_easy_setopt(req->curl_request.easy, CURLOPT_URL, url);
+	}
 
 	curl_easy_setopt(req->curl_request.easy, CURLOPT_FOLLOWLOCATION, 1);
 	curl_easy_setopt(req->curl_request.easy, CURLOPT_SSL_VERIFYPEER, 1);
