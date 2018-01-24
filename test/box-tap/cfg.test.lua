@@ -5,7 +5,7 @@ local test = tap.test('cfg')
 local socket = require('socket')
 local fio = require('fio')
 local uuid = require('uuid')
-test:plan(79)
+test:plan(81)
 
 --------------------------------------------------------------------------------
 -- Invalid values
@@ -32,6 +32,14 @@ invalid('listen', '//!')
 invalid('log', ':')
 invalid('log', 'syslog:xxx=')
 invalid('log_level', 'unknown')
+
+local function invalid_combinations(name, val)
+    local status, result = pcall(box.cfg, {[name]=val})
+    test:ok(not status and result:match('Incorrect'), 'invalid '..name)
+end
+
+invalid_combinations("log, log_nonblock", {log = "1.log", log_nonblock = true})
+invalid_combinations("log, log_format", {log = "syslog:identity:tarantool", log_format = 'json'})
 
 test:is(type(box.cfg), 'function', 'box is not started')
 
@@ -174,10 +182,10 @@ test:is(run_script(code), PANIC, 'snap_dir is invalid')
 code = [[ box.cfg{ wal_dir='invalid' } ]]
 test:is(run_script(code), PANIC, 'wal_dir is invalid')
 
-test:is(box.cfg.log_nonblock, true, "log_nonblock default value")
+test:is(box.cfg.log_nonblock, false, "log_nonblock default value")
 code = [[
-box.cfg{log_nonblock = false }
-os.exit(box.cfg.log_nonblock == false and 0 or 1)
+box.cfg{log_nonblock = true }
+os.exit(box.cfg.log_nonblock == true and 0 or 1)
 ]]
 test:is(run_script(code), 0, "log_nonblock new value")
 
