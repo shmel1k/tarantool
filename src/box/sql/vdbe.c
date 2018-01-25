@@ -4054,10 +4054,6 @@ case OP_FCopy: {     /* out2 */
  * this case. Specifically, if one is configured, the pre-update hook is
  * invoked if P4 is not NULL. The update-hook is invoked if one is configured,
  * P4 is not NULL, and the OPFLAG_NCHANGE flag is set in P2.
- *
- * If the OPFLAG_ISUPDATE flag is set in P2, then P3 contains the address
- * of the memory cell that contains the value that the rowid of the row will
- * be set to by the update.
  */
 case OP_Delete: {
 	VdbeCursor *pC;
@@ -4253,7 +4249,7 @@ case OP_NullRow: {
 
 /* Opcode: Last P1 P2 P3 * *
  *
- * The next use of the Rowid or Column or Prev instruction for P1
+ * The next use of the Column or Prev instruction for P1
  * will refer to the last entry in the database table or index.
  * If the table or index is empty and P2>0, then jump immediately to P2.
  * If P2 is 0 or if the table or index is not empty, fall through
@@ -4336,7 +4332,7 @@ case OP_Sort: {        /* jump */
 		}
 /* Opcode: Rewind P1 P2 * * *
  *
- * The next use of the Rowid or Column or Next instruction for P1
+ * The next use of the Column or Next instruction for P1
  * will refer to the first entry in the database table or index.
  * If the table or index is empty, jump immediately to P2.
  * If the table or index is not empty, fall through to the following
@@ -4613,7 +4609,7 @@ case OP_IdxDelete: {
  *
  * The P4 register values beginning with P3 form an unpacked index
  * key that omits the PRIMARY KEY.  Compare this key value against the index
- * that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID
+ * that P1 is currently pointing to, ignoring the PRIMARY KEY
  * fields at the end.
  *
  * If the P1 index entry is greater than or equal to the key value
@@ -4624,7 +4620,7 @@ case OP_IdxDelete: {
  *
  * The P4 register values beginning with P3 form an unpacked index
  * key that omits the PRIMARY KEY.  Compare this key value against the index
- * that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID
+ * that P1 is currently pointing to, ignoring the PRIMARY KEY
  * fields at the end.
  *
  * If the P1 index entry is greater than the key value
@@ -4634,9 +4630,9 @@ case OP_IdxDelete: {
  * Synopsis: key=r[P3@P4]
  *
  * The P4 register values beginning with P3 form an unpacked index
- * key that omits the PRIMARY KEY or ROWID.  Compare this key value against
- * the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
- * ROWID on the P1 index.
+ * key that omits the PRIMARY KEY.  Compare this key value against
+ * the index that P1 is currently pointing to, ignoring the PRIMARY KEY
+ * on the P1 index.
  *
  * If the P1 index entry is less than the key value then jump to P2.
  * Otherwise fall through to the next instruction.
@@ -4645,9 +4641,9 @@ case OP_IdxDelete: {
  * Synopsis: key=r[P3@P4]
  *
  * The P4 register values beginning with P3 form an unpacked index
- * key that omits the PRIMARY KEY or ROWID.  Compare this key value against
- * the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
- * ROWID on the P1 index.
+ * key that omits the PRIMARY KEY.  Compare this key value against
+ * the index that P1 is currently pointing to, ignoring the PRIMARY KEY
+ * on the P1 index.
  *
  * If the P1 index entry is less than or equal to the key value then jump
  * to P2. Otherwise fall through to the next instruction.
