@@ -42,6 +42,8 @@
 #include "session.h"
 #include "coio_file.h"
 #include "error.h"
+#include <sys/stat.h>
+
 
 /*
  * Recovery subsystem
@@ -330,20 +332,24 @@ recovery_finalize(struct recovery *r, struct xstream *stream)
 	recovery_close_log(r);
 
 	/*
-	 * Check that the last xlog file has rows.
+	 * Delete the last xlog file if either:
+	 *  - file is corrupted
+	 *  - file has zero size
 	 */
-	if (vclockset_last(&r->wal_dir.index) != NULL &&
-	    vclock_sum(&r->vclock) ==
-	    vclock_sum(vclockset_last(&r->wal_dir.index))) {
-		/*
-		 * Delete the last empty xlog file.
-		 */
+	if (vclockset_last(&r->wal_dir.index) != NULL) {
 		char *name = xdir_format_filename(&r->wal_dir,
 						  vclock_sum(&r->vclock),
 						  NONE);
-		if (unlink(name) != 0) {
-			tnt_raise(SystemError, "%s: failed to unlink file",
-				  name);
+		struct stat st;
+		if ((stat(name, &st) == 0 && st.st_size == 0) ||
+		    vclock_sum(&r->vclock) ==
+		    vclock_sum(vclockset_last(&r->wal_dir.index))) {
+			say_info("delete corrupted xlog %s", name);
+			if (unlink(name) != 0) {
+				tnt_raise(SystemError,
+					  "%s: failed to unlink file",
+					  name);
+			}
 		}
 	}
 }
@@ -529,4 +535,3 @@ recovery_stop_local(struct recovery *r)
 }
 
 /* }}} */
-
