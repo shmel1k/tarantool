@@ -484,11 +484,17 @@ int tarantoolSqlite3EphemeralCreate(BtCursor *pCur, uint32_t field_count,
 
 	struct space *ephemer_new_space = space_new_ephemeral(ephemer_space_def,
 							      &key_list);
+	if (ephemer_new_space == 0) {
+		diag_log();
+		return SQLITE_TARANTOOL_ERROR;
+	}
+
 	struct ta_cursor *c = NULL;
 	c = cursor_create(c, field_count /* key size */);
-	if (!c)
+	if (!c) {
+		space_delete(ephemer_new_space);
 		return SQLITE_NOMEM;
-
+	}
 	c->ephem_space = ephemer_new_space;
 	pCur->pTaCursor = c;
 
@@ -524,7 +530,9 @@ int tarantoolSqlite3EphemeralInsert(BtCursor *pCur, const BtreePayload *pX)
 	return SQLITE_OK;
 }
 
-/* Simply delete ephemeral space calling space_delete(). */
+/*
+ * Unref all tuples and delete ephemeral space by calling space_delete().
+ */
 int tarantoolSqlite3EphemeralDrop(BtCursor *pCur)
 {
 	assert(pCur);
@@ -532,6 +540,16 @@ int tarantoolSqlite3EphemeralDrop(BtCursor *pCur)
 
 	struct ta_cursor *c = pCur->pTaCursor;
 	assert(c->ephem_space);
+
+	struct index *index = *c->ephem_space->index;
+	struct iterator *it = index_create_iterator(index, ITER_ALL, NULL, 0);
+	if (it == NULL)
+		return SQLITE_TARANTOOL_ERROR;
+
+	struct tuple *tuple;
+	while ((iterator_next(it, &tuple)) == 0 && tuple != NULL)
+		tuple_unref(tuple);
+	iterator_delete(it);
 	space_delete(c->ephem_space);
 
 	return SQLITE_OK;
