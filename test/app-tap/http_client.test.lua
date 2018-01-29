@@ -381,7 +381,7 @@ test:plan(2)
 test:test("errors", errors_test)
 
 test:test('http over AF_INET', function(test)
-    test:plan(2)
+    test:plan(8)
 
     local server, url = start_inet_server(test)
 
@@ -389,12 +389,12 @@ test:test('http over AF_INET', function(test)
         return
     end    
     -- RUN TESTS
-    -- test:test("http.client", http_client_test, url, {})
-    -- test:test("cancel and timeout", cancel_and_timeout_test, url, {})
-    -- test:test("basic http post/get", post_and_get_test, url, {})
-    -- test:test("headers", headers_test, url, {})
-    -- test:test("special methods", special_methods_test, url, {})
-    -- test:test("concurrent", concurrent_test, url, {})
+    test:test("http.client", http_client_test, url, {})
+    test:test("cancel and timeout", cancel_and_timeout_test, url, {})
+    test:test("basic http post/get", post_and_get_test, url, {})
+    test:test("headers", headers_test, url, {})
+    test:test("special methods", special_methods_test, url, {})
+    test:test("concurrent", concurrent_test, url, {})
 
     -- STOP SERVER
     stop_server(test, server)
