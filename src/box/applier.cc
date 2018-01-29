@@ -576,6 +576,7 @@ applier_start(struct applier *applier)
 	uri_format(name + pos, sizeof(name) - pos, &applier->uri, false);
 
 	struct fiber *f = fiber_new_xc(name, applier_f);
+	fiber_set_type(f, FIBER_TYPE_APPLIER);
 	/**
 	 * So that we can safely grab the status of the
 	 * fiber any time we want.

@@ -2324,12 +2324,12 @@ vinyl_engine_prepare(struct engine *engine, struct txn *txn)
 		return -1;
 
 	/*
-	 * A replica receives a lot of data during initial join.
-	 * If the network connection is fast enough, it might fail
-	 * to keep up with dumps. To avoid replication failure due
-	 * to this, we ignore the quota timeout during bootstrap.
+	 * Do not abort join/subscribe on quota timeout - replication
+	 * is asynchronous anyway and there's box.info.replication
+	 * available for the admin to track the lag so let the applier
+	 * wait as long as necessary for memory dump to complete.
 	 */
-	double timeout = (env->status == VINYL_ONLINE ?
+	double timeout = (fiber_type(fiber()) != FIBER_TYPE_APPLIER ?
 			  env->timeout : TIMEOUT_INFINITY);
 	/*
 	 * Reserve quota needed by the transaction before allocating

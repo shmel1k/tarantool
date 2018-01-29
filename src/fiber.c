@@ -808,6 +808,7 @@ fiber_new_ex(const char *name, const struct fiber_attr *fiber_attr,
 		cord->max_fid = 101;
 	fiber->fid = cord->max_fid;
 	fiber_set_name(fiber, name);
+	fiber_set_type(fiber, FIBER_TYPE_UNKNOWN);
 	register_fid(fiber);
 
 	return fiber;

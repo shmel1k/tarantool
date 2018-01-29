@@ -108,6 +108,14 @@ enum fiber_key {
 	FIBER_KEY_MAX = 5
 };
 
+enum fiber_type {
+	/** Unknown fiber (default). */
+	FIBER_TYPE_UNKNOWN = 0,
+	/** Applier fiber. */
+	FIBER_TYPE_APPLIER = 1,
+	FIBER_TYPE_MAX
+};
+
 /** \cond public */
 
 /**
@@ -397,6 +405,9 @@ struct fiber {
 	void *fls[FIBER_KEY_MAX];
 	/** Exception which caused this fiber's death. */
 	struct diag diag;
+	/** Fiber type. */
+	enum fiber_type type;
+	/** Fiber name. */
 	char name[FIBER_NAME_MAX];
 };
 
@@ -548,6 +559,24 @@ static inline const char *
 fiber_name(struct fiber *f)
 {
 	return f->name;
+}
+
+/**
+ * Set fiber type.
+ * @param fiber Fiber to set type for.
+ * @param type New type of @a fiber.
+ */
+static inline void
+fiber_set_type(struct fiber *fiber, enum fiber_type type)
+{
+	assert(type < FIBER_TYPE_MAX);
+	fiber->type = type;
+}
+
+static inline enum fiber_type
+fiber_type(struct fiber *fiber)
+{
+	return fiber->type;
 }
 
 bool
