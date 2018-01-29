@@ -30,7 +30,7 @@ local function start_inet_server(test)
     local port = s:name().port
     s:close()
     test:diag("starting HTTP server on %s:%s...", host, port)
-    local cmd = string.format("%s/test/app-tap/httpd.py %s %s",
+    local cmd = string.format("%s/test/app-tap/httpd.py --tcp %s %s",
             TARANTOOL_SRC_DIR, host, port)
     local server = io.popen(cmd)
     test:is(server:read("*l"), "heartbeat", "server started")
@@ -376,7 +376,7 @@ local function concurrent_test(test, URL, opts)
     test:ok(ok_active, "no active requests")
 end
 
-test:plan(2)
+test:plan(3)
 
 test:test("errors", errors_test)
 
@@ -398,6 +398,52 @@ test:test('http over AF_INET', function(test)
 
     -- STOP SERVER
     stop_server(test, server)
+end)
+
+test:test('http over AF_UNIX', function(test)
+    test:plan(8)
+
+    local tmpname = os.tmpname()
+    local sock = tmpname .. '.sock'
+    test:diag("starting HTTP over UNIX socket '%s...'", sock)
+    
+    local cmd = string.format("%s/test/app-tap/httpd.py --unix %s",
+            TARANTOOL_SRC_DIR, sock)
+    local server = io.popen(cmd)
+    test:is(server:read("*l"), "heartbeat", "server started")
+
+    local url = "http://localhost/"
+    test:diag("trying to connect to %s", url)
+    local r
+    for i=1,10 do
+        r = client.get(url, {unix_socket=sock, timeout = 0.01})
+        if r.status == 200 then
+            break
+        end
+        fiber.sleep(0.01)
+    end
+    
+    test:is(r.status, 200, "connection is ok")
+    if r.status ~= 200 then
+        os.remove(tmpname)
+        os.remove(sock)
+        server:close()
+        return
+    end
+
+    -- RUN TESTS
+    local opts = {unix_socket = sock}
+    test:test("http.client", http_client_test, url, opts)
+    test:test("cancel and timeout", cancel_and_timeout_test, url, opts)
+    test:test("basic http post/get", post_and_get_test, url, opts)
+    test:test("headers", headers_test, url, opts)
+    test:test("special methods", special_methods_test, url, opts)
+    test:test("concurrent", concurrent_test, url, opts)
+
+    -- -- STOP SERVER
+    os.remove(tmpname)
+    os.remove(sock)
+    server:close()
 end)
 
 test:diag("tests finished")
