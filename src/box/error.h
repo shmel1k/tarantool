@@ -135,7 +135,7 @@ extern const struct type_info type_AccessDeniedError;
 
 #if defined(__cplusplus)
 } /* extern "C" */
-#include "exception.h"
+#include <exception.h>
 
 struct rmean;
 extern "C" struct rmean *rmean_error;
