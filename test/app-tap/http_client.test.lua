@@ -23,41 +23,6 @@ local function merge(...)
     return res
 end
 
-local function start_inet_server(test)
-    local s = socketlib('AF_INET', 'SOCK_STREAM', 0)
-    s:bind('127.0.0.1', 0)
-    local host = s:name().host
-    local port = s:name().port
-    s:close()
-    test:diag("starting HTTP server on %s:%s...", host, port)
-    local cmd = string.format("%s/test/app-tap/httpd.py --tcp %s %s",
-            TARANTOOL_SRC_DIR, host, port)
-    local server = io.popen(cmd)
-    test:is(server:read("*l"), "heartbeat", "server started")
-    local url = string.format("http://%s:%s/", host, port)
-    test:diag("trying to connect to %s", url)
-    local r
-    for i=1,10 do
-        r = client.get(url, {timeout = 0.01})
-        if r.status == 200 then
-            break
-        end
-        fiber.sleep(0.01)
-    end
-    test:is(r.status, 200, "connection is ok")
-    if r.status ~= 200 then
-        server:close()
-        return
-    end
-
-    return server, url
-end
-
-local function stop_server(test, server)
-    test:diag("stopping HTTP server")
-    server:close()
-end
-
 local function http_client_test(test, URL, opts)
     -- "http.client"
     test:plan(9)
@@ -383,11 +348,35 @@ test:test("errors", errors_test)
 test:test('http over AF_INET', function(test)
     test:plan(8)
 
-    local server, url = start_inet_server(test)
+    local s = socketlib('AF_INET', 'SOCK_STREAM', 0)
+    s:bind('127.0.0.1', 0)
+    local host = s:name().host
+    local port = s:name().port
+    s:close()
 
-    if not server then
+    test:diag("starting HTTP server on %s:%s...", host, port)
+    local cmd = string.format("%s/test/app-tap/httpd.py --inet %s %s",
+            TARANTOOL_SRC_DIR, host, port)
+    local server = io.popen(cmd)
+    test:is(server:read("*l"), "heartbeat", "server started")
+    
+    local url = string.format("http://%s:%s/", host, port)
+    test:diag("trying to connect to %s", url)
+    local r
+    for i=1,10 do
+        r = client.get(url, {timeout = 0.01})
+        if r.status == 200 then
+            break
+        end
+        fiber.sleep(0.01)
+    end
+    
+    test:is(r.status, 200, "connection is ok")
+    if r.status ~= 200 then
+        server:close()
         return
-    end    
+    end
+
     -- RUN TESTS
     test:test("http.client", http_client_test, url, {})
     test:test("cancel and timeout", cancel_and_timeout_test, url, {})
@@ -397,7 +386,8 @@ test:test('http over AF_INET', function(test)
     test:test("concurrent", concurrent_test, url, {})
 
     -- STOP SERVER
-    stop_server(test, server)
+    test:diag("stopping HTTP server")
+    server:close()
 end)
 
 test:test('http over AF_UNIX', function(test)
@@ -440,7 +430,8 @@ test:test('http over AF_UNIX', function(test)
     test:test("special methods", special_methods_test, url, opts)
     test:test("concurrent", concurrent_test, url, opts)
 
-    -- -- STOP SERVER
+    -- STOP SERVER
+    test:diag("stopping HTTP server")
     os.remove(tmpname)
     os.remove(sock)
     server:close()

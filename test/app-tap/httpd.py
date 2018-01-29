@@ -99,11 +99,11 @@ def heartbeat():
 
 
 if len(sys.argv) < 2:
-    sys.stderr.write("Usage: %s {--tcp|--unix}\n" % sys.argv[0])
+    sys.stderr.write("Usage: %s {--inet|--unix}\n" % sys.argv[0])
     sys.exit(1)
-elif sys.argv[1] == "--tcp":
+elif sys.argv[1] == "--inet":
     if len(sys.argv) != 4:
-        sys.stderr.write("Usage: %s --tcp HOST PORT\n" % sys.argv[0])
+        sys.stderr.write("Usage: %s --inet HOST PORT\n" % sys.argv[0])
         sys.exit(1)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((sys.argv[2], int(sys.argv[3])))
@@ -116,7 +116,7 @@ elif sys.argv[1] == "--unix":
     sock.bind(sys.argv[2])
     sock.listen(10)
 else:
-    sys.stderr.write("Usage: %s {--tcp|--unix}\n" % sys.argv[0])
+    sys.stderr.write("Usage: %s {--inet|--unix}\n" % sys.argv[0])
     sys.exit(1)
 
 
